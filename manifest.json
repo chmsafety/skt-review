@@ -1,0 +1,17 @@
+{
+  "name": "SKT 사옥점검 강평",
+  "short_name": "사옥점검 강평",
+  "description": "SKT 사옥 정기점검 사진 등록·강평·사업장 전달자료 발송",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0E2A48",
+  "theme_color": "#1C4A73",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
