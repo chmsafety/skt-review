@@ -157,6 +157,7 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .ph{position:relative}
 .show .ph img{display:block;width:100%;height:100%}
 .show .ph svg{position:absolute;inset:0;width:100%;height:100%}
+.show .ph .gb{left:14px;top:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .show .gb{position:absolute;left:24px;top:20px;font-size:26px;font-weight:700;padding:4px 18px;border-radius:8px;letter-spacing:.02em}
 .show .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;max-width:min(1100px,92vw);text-align:center;font-size:clamp(18px,2.4vw,30px);font-weight:600;line-height:1.35;background:rgba(255,255,255,.94);color:#15202B;box-shadow:0 2px 12px rgba(21,32,43,.12);padding:10px 22px;border-radius:10px;text-wrap:balance}
 .show .cap small{display:block;font-size:.62em;font-weight:500;color:#48566A}
@@ -945,8 +946,8 @@ async function viewShow(id){
   let S=buildSlides(r,photos);let idx=0;
   app.innerHTML='';
   const el=document.createElement('div');el.className='show';el.tabIndex=0;layer.appendChild(el);document.body.style.overflow='hidden';
-  const ph=async(x,maxW,maxH)=>{const u=await blobUrl(x.fileId);const k=Math.min(maxW/x.w,maxH/x.h);const W=Math.floor(x.w*k),H=Math.floor(x.h*k);
-    return `<div class="ph" style="width:${W}px;height:${H}px"><img src="${u}" alt=""><svg viewBox="0 0 ${x.w} ${x.h}" preserveAspectRatio="none">${ellipses(x.circles,x.w,x.h,Math.max(4,x.w*.008))}</svg></div>`};
+  const ph=async(x,maxW,maxH,badge='')=>{const u=await blobUrl(x.fileId);const k=Math.min(maxW/x.w,maxH/x.h);const W=Math.floor(x.w*k),H=Math.floor(x.h*k);
+    return `<div class="ph" style="width:${W}px;height:${H}px"><img src="${u}" alt=""><svg viewBox="0 0 ${x.w} ${x.h}" preserveAspectRatio="none">${ellipses(x.circles,x.w,x.h,Math.max(4,x.w*.008))}</svg>${badge}</div>`};
   const render=async()=>{
     if(!S.length){el.innerHTML=`<div class="st"><div class="div"><h3 style="font-size:36px">올라온 사진이 없습니다</h3><button class="btn" id="shX">나가기</button></div></div>`;$('#shX',el).onclick=exit;return}
     const s=S[idx];el.classList.toggle('light',s.t==='cover');lsSet('skt_show_'+id,idx);const pn=s.p?s.p.n:'표지';
@@ -954,7 +955,7 @@ async function viewShow(id){
     let inner='';
     if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2></div>`}
     else if(s.t==='div'){inner=`<div class="art" aria-hidden="true" style="background-image:url('${artUrl(s.p.k)}')"></div><div class="div"><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
-    else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190);inner+=`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span><div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
+    else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190,`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span>`);inner+=`<div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const cw=(vw-pad-14)/2,chh=(vh-150-14)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh)}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}</div>`));
       inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div><span class="gb g-crisis">위기대응 ${s.page}/${s.pages}</span>`}
     else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#48566A" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#48566A">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
@@ -994,6 +995,20 @@ function allocate(durs,total){ // 영상마다 앞부분을 잘라 합계가 tot
     if(next.length===idx.length){for(const i of next){out[i]+=share}left=0}idx=next}
   return out.map(v=>Math.max(0,+v.toFixed(2)));
 }
+function bgMusic(ac,out,dur){ // 합본 영상 배경음악: 직접 합성한 잔잔한 곡(Am–F–C–G, 저작권 걱정 없음), 작게 깔고 앞뒤 서서히
+  const VOL=.3,m=ac.createGain(),lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1600;lp.connect(m);m.connect(out);
+  const t0=ac.currentTime+.05,bar=2.4,hz=n=>440*Math.pow(2,(n-69)/12),prog=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]];
+  m.gain.setValueAtTime(0,t0);m.gain.linearRampToValueAtTime(VOL,t0+1.5);
+  const tone=(type,f,t,len,peak,att)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+att);g.gain.exponentialRampToValueAtTime(.0005,t+len);g.gain.linearRampToValueAtTime(0,t+len+.05);
+    o.connect(g);g.connect(lp);o.start(t);o.stop(t+len+.1)};
+  const bars=Math.ceil((dur+4)/bar);
+  for(let b=0;b<bars;b++){const ch=prog[b%4],tb=t0+b*bar;
+    for(const n of ch)tone('triangle',hz(n),tb,bar+.3,.09,.7);
+    tone('sine',hz(ch[0]-12),tb,bar,.16,.08);
+    for(let k=0;k<8;k++)tone('sine',hz(ch[[0,1,2,1,0,2,1,2][k]]+12),tb+k*bar/8,.5,.05,.01)}
+  return{fadeOut(){const t=ac.currentTime;m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+.6)}};
+}
 async function mergeVideos(items,total,onProg){
   if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream)throw new Error('이 브라우저는 영상 합치기를 지원하지 않습니다. 노트북의 크롬이나 엣지에서 해 주세요.');
   onProg(0,'영상 불러오는 중…');
@@ -1004,7 +1019,7 @@ async function mergeVideos(items,total,onProg){
   const W=1280,H=720;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
   g.fillStyle='#000';g.fillRect(0,0,W,H);
   const stream=c.captureStream(30);
-  let ac=null;try{ac=new (window.AudioContext||window.webkitAudioContext)();const dest=ac.createMediaStreamDestination();
+  let ac=null,dest=null,bg=null;try{ac=new (window.AudioContext||window.webkitAudioContext)();dest=ac.createMediaStreamDestination();
     for(const v of vids){ac.createMediaElementSource(v).connect(dest)}const at=dest.stream.getAudioTracks()[0];if(at)stream.addTrack(at)}catch(e){ac=null;vids.forEach(v=>v.muted=true)}
   const types=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
   const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
@@ -1014,6 +1029,7 @@ async function mergeVideos(items,total,onProg){
   if(ac&&ac.state==='suspended')await ac.resume();
   rec.start(250);
   const sum=segs.reduce((a,b)=>a+b,0)||1;let doneT=0;
+  if(ac&&dest){try{bg=bgMusic(ac,dest,sum)}catch(e){bg=null}}
   for(let i=0;i<vids.length;i++){const v=vids[i],seg=segs[i];if(seg<=0)continue;
     v.currentTime=0;await new Promise(ok=>{if(v.readyState>=2&&v.currentTime===0)ok();else{v.onseeked=ok;setTimeout(ok,1500)}});
     await v.play().catch(()=>{v.muted=true;return v.play()});
@@ -1022,6 +1038,7 @@ async function mergeVideos(items,total,onProg){
         onProg(Math.min(1,(doneT+v.currentTime)/sum),`${i+1}/${vids.length}번째 영상 · ${(doneT+v.currentTime).toFixed(1)}초 / ${sum.toFixed(1)}초`);
         if(v.currentTime>=seg||v.ended)ok();else requestAnimationFrame(tick)};tick()});
     v.pause();doneT+=seg}
+  if(bg){bg.fadeOut();await new Promise(ok=>setTimeout(ok,650))}
   rec.stop();await stopped;if(ac)ac.close().catch(()=>{});
   vids.forEach(v=>URL.revokeObjectURL(v.src));
   onProg(1,'완료');
