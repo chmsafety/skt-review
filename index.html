@@ -158,6 +158,7 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .ph img{display:block;width:100%;height:100%}
 .show .ph svg{position:absolute;inset:0;width:100%;height:100%}
 .show .ph .gb{left:14px;top:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.show .gb.g-fix{background:#F47920;color:#fff}
 .show .gb{position:absolute;left:24px;top:20px;font-size:26px;font-weight:700;padding:4px 18px;border-radius:8px;letter-spacing:.02em}
 .show .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;max-width:min(1100px,92vw);text-align:center;font-size:clamp(18px,2.4vw,30px);font-weight:600;line-height:1.35;background:rgba(255,255,255,.94);color:#15202B;box-shadow:0 2px 12px rgba(21,32,43,.12);padding:10px 22px;border-radius:10px;text-wrap:balance}
 .show .cap small{display:block;font-size:.62em;font-weight:500;color:#48566A}
@@ -955,9 +956,9 @@ async function viewShow(id){
     let inner='';
     if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2></div>`}
     else if(s.t==='div'){inner=`<div class="art" aria-hidden="true" style="background-image:url('${artUrl(s.p.k)}')"></div><div class="div"><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
-    else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190,`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span>`);inner+=`<div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
+    else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190,s.x.grade==='bad'?'<span class="gb g-fix">개선필요</span>':`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span>`);inner+=`<div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const cw=(vw-pad-14)/2,chh=(vh-150-14)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh)}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}</div>`));
-      inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div><span class="gb g-crisis">위기대응 ${s.page}/${s.pages}</span>`}
+      inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div>`}
     else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#48566A" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#48566A">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
     el.innerHTML=`<div class="st">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
