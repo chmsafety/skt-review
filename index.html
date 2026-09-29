@@ -171,6 +171,7 @@ table.t input{min-height:34px;padding:5px 8px}
 .show.light{background:#E6E9ED;color:#15202B}
 .show.light .cover .k{color:#48566A}
 .show.light .cover h2{color:#15202B}
+.show .cover .dt{font-size:clamp(20px,2.8vw,38px);font-weight:500;color:#48566A;letter-spacing:.02em}
 .show.light .meta{color:#48566A}
 .show.light .meta .btn{background:rgba(21,32,43,.06);border-color:rgba(21,32,43,.18);color:#15202B}
 .show .div{text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center;position:relative;z-index:1}
@@ -250,6 +251,7 @@ const uid=(n=12)=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return [.
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const halfOf=d=>(+String(d).slice(5,7)<=6?'상반기':'하반기');
 const yy=d=>String(d).slice(2,4);
+const korD=d=>{const [y,m,dd]=String(d||'').slice(0,10).split('-');return y&&m&&dd?`${+y}년 ${+m}월 ${+dd}일`:''};
 const fmtD=d=>{if(!d)return'';const [y,m,dd]=String(d).split('-');return `${y}.${m}.${dd}`};
 function toast(msg,ms=2600){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),ms)}
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
@@ -956,7 +958,7 @@ async function viewShow(id){
     const s=S[idx];el.classList.toggle('light',s.t==='cover');lsSet('skt_show_'+id,idx);const pn=s.p?s.p.n:'표지';
     const vw=innerWidth,vh=innerHeight;const pad=vw<560?16:48;
     let inner='';
-    if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2></div>`}
+    if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2>${korD(r.date)?`<div class="dt">${korD(r.date)}</div>`:''}</div>`}
     else if(s.t==='div'){inner=`<div class="art" aria-hidden="true" style="background-image:url('${artUrl(s.p.k)}')"></div><div class="div"><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190,s.x.grade==='bad'?'<span class="gb g-fix">개선필요</span>':`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span>`);inner+=`<div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const gw=vw-24,gh=vh-68,cw=(gw-10)/2,chh=(gh-10)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh,x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:'')}</div>`));
