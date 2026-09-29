@@ -924,8 +924,8 @@ function buildSlides(r,photos){
     if(p.k==='crisis'){
       const ph=ordered(list.filter(x=>x.kind!=='video'));const vd=list.filter(x=>x.kind==='video');
       S.push({t:'div',p,i});
-      for(let k=0;k<ph.length;k+=4)S.push({t:'grid',p,items:ph.slice(k,k+4),page:k/4+1,pages:Math.ceil(ph.length/4)});
       if(vd.length)S.push({t:'video',p,n:vd.length});
+      for(let k=0;k<ph.length;k+=4)S.push({t:'grid',p,items:ph.slice(k,k+4),page:k/4+1,pages:Math.ceil(ph.length/4)});
     }else{
       const g=ordered(list.filter(x=>x.grade==='good')),b=ordered(list.filter(x=>x.grade==='bad'));
       S.push({t:'div',p,i,good:g.length,bad:b.length});
