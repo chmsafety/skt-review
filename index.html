@@ -112,6 +112,13 @@ textarea{resize:vertical;min-height:64px;line-height:1.45}
 .seg button[aria-pressed="true"].bad{background:var(--bad);color:#fff}
 .bulk{position:sticky;bottom:0;z-index:15;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
 .chk{width:22px;height:22px;accent-color:var(--accent)}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;color:var(--ink-2);background:var(--surface);transition:border-color .15s,background .15s}
+.drop b{color:var(--ink)}
+.drop.on{border-color:var(--accent);background:var(--accent-soft)}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(460px,100%),1fr));gap:12px}
+.upwrap{max-width:720px;margin:0 auto}
+@media (min-width:1000px) and (pointer:fine){.upwrap{max-width:1080px}.draft{grid-template-columns:190px 1fr}}
+kbd{font-family:var(--f-mono);font-size:11.5px;border:1px solid #3A4754;border-radius:4px;padding:0 5px;background:#1A232C}
 .prog{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden}
 .prog i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
 /* 표 */
@@ -498,7 +505,7 @@ async function viewRound(id){
         <div class="stack" style="flex:1;min-width:240px;gap:10px">
           <div class="linkbox"><code id="lnk">${esc(upLink(r))}</code><button class="btn sm" id="copyLnk">복사</button></div>
           <div class="muted">점검자는 이 링크로 들어와 파트와 이름만 고르면 바로 사진을 올립니다. 휴대폰 카메라로 오른쪽 QR을 찍어도 됩니다.</div>
-          <div class="row"><a class="btn sm" href="#u/${r.code}">점검자 화면 열기</a><button class="btn sm" id="editRound">회차 정보 수정</button><button class="btn sm danger" id="delRound">회차 삭제</button></div>
+          <div class="row"><a class="btn sm" href="#u/${r.code}">사진 올리기 화면 열기</a><button class="btn sm" id="editRound">회차 정보 수정</button><button class="btn sm danger" id="delRound">회차 삭제</button></div>
         </div>
         <div id="qr" aria-label="점검자 링크 QR"></div>
       </div>
@@ -539,6 +546,8 @@ async function viewRound(id){
   await fillThumbs(photos);
   $$('[data-mv]').forEach(b=>b.onclick=async()=>{const p=photos.find(x=>x.id===b.dataset.id);await movePhoto(p,photos,+b.dataset.mv);route()});
   $$('[data-edit]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.edit);editPhotoBox(p,route,true)});
+  $$('.pc [data-thumb]').forEach(el=>{const p=photos.find(x=>x.id===el.dataset.thumb);if(!p||p.kind==='video')return;el.style.cursor='pointer';el.title='눌러서 편집';el.onclick=()=>editPhotoBox(p,route,true)});
+  $$('[data-add]').forEach(b=>b.onclick=()=>{lsSet('skt_me',{part:b.dataset.add,name:(SERVER&&auth()?auth().name:'관리자')});location.hash='#u/'+r.code});
   $$('[data-rm]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.rm);confirmBox('이 사진을 지웁니다.','삭제',async()=>{await API.deletePhoto(p);route()})});
 }
 function partSection(p,photos,c){
@@ -547,7 +556,7 @@ function partSection(p,photos,c){
   const groups=p.k==='crisis'?[['crisis','사진',list.filter(i=>i.kind!=='video')],['video','영상',list.filter(i=>i.kind==='video')]]
     :[['good','우수',list.filter(i=>i.grade==='good')],['bad','미흡',list.filter(i=>i.grade==='bad')]];
   const sum=p.k==='crisis'?`사진 <b class="num">${x.crisis}</b> · 영상 <b class="num">${x.video}</b>`:`<span style="color:var(--good)">우수 <b class="num">${x.good}</b></span> · <span style="color:var(--bad)">미흡 <b class="num">${x.bad}</b></span>`;
-  return `<section class="part panel"><div class="part-h"><span class="dot" style="${p.k==='crisis'?'background:var(--crisis)':''}"></span><h2>${PARTS.indexOf(p)+1}. ${p.n}</h2><span class="muted">${sum}</span>${p.sheet?`<span class="muted">· 엑셀 「${p.sheet}. ${p.n==='기계설비'?'기계':p.n}」 시트</span>`:'<span class="muted">· 엑셀 제외</span>'}</div>
+  return `<section class="part panel"><div class="part-h"><span class="dot" style="${p.k==='crisis'?'background:var(--crisis)':''}"></span><h2>${PARTS.indexOf(p)+1}. ${p.n}</h2><span class="muted">${sum}</span>${p.sheet?`<span class="muted">· 엑셀 「${p.sheet}. ${p.n==='기계설비'?'기계':p.n}」 시트</span>`:'<span class="muted">· 엑셀 제외</span>'}<span style="flex:1"></span><button class="btn sm" data-add="${p.k}">＋ 사진 추가</button></div>
   ${list.length?groups.filter(g=>g[2].length).map(([g,label,items])=>`<div class="muted" style="font-weight:600">${label} ${items.length}</div><div class="grid">${ordered(items).map((it,i,arr)=>photoCard(it,i,arr.length)).join('')}</div>`).join(''):'<div class="muted">아직 올라온 사진이 없습니다.</div>'}</section>`;
 }
 function photoCard(p,i,n){
@@ -597,16 +606,19 @@ function editRoundBox(r,st){
 async function editPhotoBox(p,after,admin){
   const u=await blobUrl(p.fileId);
   layer.innerHTML=`<div class="modal"><form class="sheet" id="epF"><h2>사진 편집</h2>
-  <div class="box" id="epBox">${frameHTML(p,u)}</div>
-  ${p.part==='crisis'?'':`<div class="seg" role="group"><button type="button" class="good" data-g="good" aria-pressed="${p.grade==='good'}">우수</button><button type="button" class="bad" data-g="bad" aria-pressed="${p.grade==='bad'}">미흡</button></div>`}
+  <div class="box" id="epBox" title="사진을 누르면 원 표시 화면이 열립니다" style="cursor:pointer">${frameHTML(p,u)}</div>
+  ${admin?`<label class="f">분야<select id="epPt">${PARTS.map(x=>`<option value="${x.k}" ${x.k===p.part?'selected':''}>${x.n}</option>`).join('')}</select></label>`:''}
+  <div class="seg" role="group" id="epSeg" ${p.part==='crisis'?'hidden':''}><button type="button" class="good" data-g="good" aria-pressed="${p.grade==='good'}">우수</button><button type="button" class="bad" data-g="bad" aria-pressed="${p.grade==='bad'}">미흡</button></div>
   <label class="f">장소<input type="text" id="epPl" value="${esc(p.place||'')}" maxlength="60"></label>
   <label class="f">간단 설명<textarea id="epDs" maxlength="200">${esc(p.desc||'')}</textarea></label>
   <div class="row"><button type="button" class="btn" id="epCi">원 표시 (${(p.circles||[]).length})</button><span style="flex:1"></span><button type="button" class="btn" id="epNo">취소</button><button class="btn pri">저장</button></div></form></div>`;
-  let g=p.grade,circles=[...(p.circles||[])];
+  let g=p.grade,circles=[...(p.circles||[])],part=p.part;
+  const pt=$('#epPt');if(pt)pt.onchange=()=>{part=pt.value;$('#epSeg').hidden=part==='crisis';if(part==='crisis')g='crisis';else if(g==='crisis'){g='bad';$$('#epF [data-g]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.g==='bad'))}};
   $$('#epF [data-g]').forEach(b=>b.onclick=()=>{g=b.dataset.g;$$('#epF [data-g]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
   $('#epNo').onclick=()=>layer.innerHTML='';
+  $('#epBox').onclick=()=>$('#epCi').click();
   $('#epCi').onclick=()=>openCircleEditor(u,p.w,p.h,circles,res=>{circles=res;$('#epBox').innerHTML=frameHTML({...p,circles},u);$('#epCi').textContent=`원 표시 (${res.length})`});
-  $('#epF').onsubmit=async e=>{e.preventDefault();p.grade=g;p.place=$('#epPl').value.trim();p.desc=$('#epDs').value.trim();p.circles=circles;await API.savePhoto(p);layer.innerHTML='';toast('저장했습니다.');after&&after()};
+  $('#epF').onsubmit=async e=>{e.preventDefault();p.part=part;p.grade=part==='crisis'?'crisis':(g==='crisis'?'bad':g);p.place=$('#epPl').value.trim();p.desc=$('#epDs').value.trim();p.circles=circles;await API.savePhoto(p);layer.innerHTML='';toast('저장했습니다.');after&&after()};
 }
 
 /* ================= 빨간 원 편집기 ================= */
@@ -615,7 +627,7 @@ function openCircleEditor(url,w,h,circles,done){
   const ed=document.createElement('div');ed.className='editor';
   ed.innerHTML=`<div class="bar"><button class="btn" id="ceDel">선택한 원 삭제</button><button class="btn" id="ceClr">모두 지우기</button><span style="flex:1"></span><button class="btn" id="ceNo">취소</button><button class="btn pri" id="ceOk">완료</button></div>
   <div class="stage" id="ceStage"><div class="cv" id="ceCv"><img src="${url}" alt=""><svg id="ceSvg"></svg></div></div>
-  <div class="hint">빈 곳을 누르면 원이 생깁니다 · 원을 끌어 옮기고, 흰 점을 끌어 크기를 바꾸세요</div>`;
+  <div class="hint">${matchMedia('(pointer:coarse)').matches?'빈 곳을 누르면 원이 생깁니다 · 원을 끌어 옮기고, 흰 점을 끌어 크기를 바꾸세요':'빈 곳을 클릭하면 원이 생깁니다 · 원을 끌어 옮기기 · 흰 점을 끌어 크기(<kbd>Shift</kbd> 누르면 정원) · 원 위에서 휠로 크기 · <kbd>Delete</kbd> 삭제 · <kbd>Enter</kbd> 완료 · <kbd>Esc</kbd> 취소'}</div>`;
   document.body.appendChild(ed);document.body.style.overflow='hidden';
   const stage=$('#ceStage',ed),cv=$('#ceCv',ed),svg=$('#ceSvg',ed);let W=0,H=0;
   const fit=()=>{const sw=stage.clientWidth-16,sh=stage.clientHeight-16;const k=Math.min(sw/w,sh/h);W=Math.round(w*k);H=Math.round(h*k);cv.style.width=W+'px';cv.style.height=H+'px';svg.setAttribute('viewBox',`0 0 ${W} ${H}`);draw()};
@@ -632,9 +644,13 @@ function openCircleEditor(url,w,h,circles,done){
     cv.setPointerCapture(e.pointerId);draw()});
   cv.addEventListener('pointermove',e=>{if(!drag||sel<0)return;const q=pt(e);const c=cs[sel];
     if(drag.m==='m'){c.cx=(q.x-drag.dx)/W;c.cy=(q.y-drag.dy)/H}
-    else{const rx=Math.max(14,Math.abs(q.x-c.cx*W)/K),ry=Math.max(14,Math.abs(q.y-c.cy*H)/K);c.rx=rx/W;c.ry=ry/H}draw()});
+    else{let rx=Math.max(14,Math.abs(q.x-c.cx*W)/K),ry=Math.max(14,Math.abs(q.y-c.cy*H)/K);if(e.shiftKey){rx=ry=Math.max(rx,ry)}c.rx=rx/W;c.ry=ry/H}draw()});
+  cv.addEventListener('wheel',e=>{const t=e.target;const i=t.dataset&&t.dataset.i!==undefined?+t.dataset.i:sel;if(i<0||!cs[i])return;e.preventDefault();sel=i;const k=e.deltaY<0?1.08:1/1.08;const c=cs[i];
+    c.rx=Math.min(1,Math.max(14/W,c.rx*k));c.ry=Math.min(1,Math.max(14/H,c.ry*k));draw()},{passive:false});
+  const key=e=>{if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();$('#ceDel',ed).click()}else if(e.key==='Escape'){e.preventDefault();close()}else if(e.key==='Enter'){e.preventDefault();$('#ceOk',ed).click()}};
+  addEventListener('keydown',key);
   const up=()=>{drag=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
-  const close=()=>{removeEventListener('resize',fit);ed.remove();document.body.style.overflow=''};
+  const close=()=>{removeEventListener('resize',fit);removeEventListener('keydown',key);ed.remove();document.body.style.overflow=''};
   $('#ceDel',ed).onclick=()=>{if(sel>=0){cs.splice(sel,1);sel=cs.length-1;draw()}};
   $('#ceClr',ed).onclick=()=>{cs=[];sel=-1;draw()};
   $('#ceNo',ed).onclick=close;
@@ -643,12 +659,21 @@ function openCircleEditor(url,w,h,circles,done){
 }
 
 /* ================= 점검자: 사진 등록 ================= */
-let drafts=[];
+let drafts=[];let UPCTX=null;
+/* 노트북: 끌어다 놓기 · 붙여넣기 */
+const onUpload=()=>location.hash.startsWith('#u/')&&UPCTX&&$('#dl');
+addEventListener('dragover',e=>{if(!onUpload())return;e.preventDefault();const d=$('#drop');if(d)d.classList.add('on')});
+addEventListener('dragleave',e=>{if(e.relatedTarget)return;const d=$('#drop');if(d)d.classList.remove('on')});
+addEventListener('drop',e=>{if(!onUpload())return;e.preventDefault();const d=$('#drop');if(d)d.classList.remove('on');
+  const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])].filter(f=>/^(image|video)\//.test(f.type));if(fs.length)addFiles(fs,UPCTX.r,UPCTX.who);else toast('사진이나 영상 파일만 올릴 수 있습니다.')});
+addEventListener('paste',e=>{if(!onUpload()||$('.modal')||$('.editor'))return;if(/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||''))return;
+  const fs=[...(e.clipboardData&&e.clipboardData.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map((i,k)=>{const f=i.getAsFile();return new File([f],`붙여넣기_${Date.now()}_${k+1}.png`,{type:f.type,lastModified:Date.now()})});
+  if(fs.length){e.preventDefault();addFiles(fs,UPCTX.r,UPCTX.who)}});
 async function viewUpload(code){
   const rb=await API.roundByCodeFull(code);const r=rb&&rb.round;
   setNav('');
   if(!r){app.innerHTML='<div class="empty">링크가 올바르지 않거나 회차가 삭제되었습니다. 관리자에게 링크를 다시 받아 주세요.</div>';return}
-  if(r.reviewedAt){app.innerHTML=`<div class="empty"><b>${esc(r.siteName)}</b> 점검은 강평이 끝나 사진 등록이 닫혔습니다.</div>`;return}
+  if(r.reviewedAt&&SERVER&&!auth()){app.innerHTML=`<div class="empty"><b>${esc(r.siteName)}</b> 점검은 강평이 끝나 사진 등록이 닫혔습니다.</div>`;return}
   API.code=code;API.rid=r.id;const inspectors=rb.inspectors||[];
   let who=me();
   const head=`<div><div class="muted">${r.year}년 ${r.half} · ${fmtD(r.date)}</div><h1>${esc(r.siteName)} 사옥점검</h1></div>`;
@@ -666,20 +691,23 @@ async function viewUpload(code){
   }
   const P=PART[who.part];const isC=who.part==='crisis';
   drafts=drafts.filter(d=>d.code===code);
-  app.innerHTML=`<div class="stack" style="max-width:720px;margin:0 auto">${head}
+  const DESK=!matchMedia('(pointer:coarse)').matches;const isAdmin=!SERVER||!!auth();
+  app.innerHTML=`<div class="stack upwrap">${isAdmin?`<a class="btn sm" href="#r/${r.id}" style="align-self:flex-start">← 회차 화면으로</a>`:''}${head}
     <div class="panel row" style="justify-content:space-between"><div class="who"><span class="pill ${isC?'g-crisis':'p-up'}">${P.n}</span>${esc(who.name)}</div><button class="btn sm" id="chg">파트·이름 변경</button></div>
     <div class="row">
-      <button class="btn big" id="bCam">촬영하기</button>
-      <button class="btn big pri" id="bPick">사진첩에서 선택</button>
+      ${DESK?'':'<button class="btn big" id="bCam">촬영하기</button>'}
+      <button class="btn big pri" id="bPick">${DESK?'파일에서 사진 선택':'사진첩에서 선택'}</button>
       ${isC?'<button class="btn big" id="bVid">영상 추가</button>':''}
     </div>
-    <div class="muted">사진첩에서는 여러 장을 한꺼번에 고를 수 있고, 한 장만 골라도 됩니다. ${isC?'위기대응 영상은 강평 전에 관리자가 촬영 시간 순으로 합쳐 약 20초 영상으로 만듭니다.':'기본값은 미흡이며, 카드마다 또는 여러 장을 골라 한꺼번에 바꿀 수 있습니다.'}</div>
+    ${DESK?`<div class="drop" id="drop"><b>사진${isC?'·영상':''}을 여기로 끌어다 놓으세요</b><br>여러 장을 한꺼번에 놓아도 되고, 캡처한 화면은 <b>Ctrl+V</b>로 붙여넣을 수 있습니다.</div>`:''}
+    <div class="muted">${DESK?'파일 선택 창에서 Ctrl 또는 Shift를 누른 채 여러 장을 고를 수 있습니다.':'사진첩에서는 여러 장을 한꺼번에 고를 수 있고, 한 장만 골라도 됩니다.'} ${isC?'위기대응 영상은 강평 전에 관리자가 촬영 시간 순으로 합쳐 약 20초 영상으로 만듭니다.':'기본값은 미흡이며, 카드마다 또는 여러 장을 골라 한꺼번에 바꿀 수 있습니다.'}</div>
     <div id="dl" class="stack"></div>
     <section class="stack" id="mine"></section>
   </div>
   <div class="bulk" id="bulk" hidden></div>`;
   $('#chg').onclick=()=>{lsSet('skt_me',{part:who.part,name:''});route()};
-  $('#bCam').onclick=()=>{$('#inCam').value='';$('#inCam').click()};
+  UPCTX={r,who};
+  if($('#bCam'))$('#bCam').onclick=()=>{$('#inCam').value='';$('#inCam').click()};
   $('#bPick').onclick=()=>{$('#inPick').value='';$('#inPick').click()};
   if(isC)$('#bVid').onclick=()=>{$('#inVid').value='';$('#inVid').click()};
   $('#inCam').onchange=e=>addFiles(e.target.files,r,who);
@@ -706,16 +734,16 @@ function drawDrafts(r,who){
   const box=$('#dl'),bulk=$('#bulk');if(!box)return;
   const isC=who.part==='crisis';
   if(!drafts.length){box.innerHTML='';bulk.hidden=true;return}
-  box.innerHTML=`<div class="row" style="justify-content:space-between"><h2>올릴 사진 <span class="num">${drafts.length}</span></h2><label class="row muted"><input type="checkbox" class="chk" id="selAll" ${drafts.every(d=>d.sel)?'checked':''}> 전체 선택</label></div>`+
+  box.innerHTML=`<div class="row" style="justify-content:space-between"><h2>올릴 사진 <span class="num">${drafts.length}</span></h2><label class="row muted"><input type="checkbox" class="chk" id="selAll" ${drafts.every(d=>d.sel)?'checked':''}> 전체 선택</label></div><div class="dgrid">`+
   drafts.map((d,i)=>`<div class="draft ${d.sel?'sel':''}" data-k="${d.key}">
-    <div class="stack" style="gap:6px"><div class="box">${frameHTML({...d,kind:d.kind},d.url,4/3,d.kind==='video'?`<span class="vtag">${(d.dur||0).toFixed(1)}s</span>`:'')}</div>
+    <div class="stack" style="gap:6px"><div class="box" ${d.kind==='video'?'':`data-ci="${i}" style="cursor:pointer" title="눌러서 원 표시"`}>${frameHTML({...d,kind:d.kind},d.url,4/3,d.kind==='video'?`<span class="vtag">${(d.dur||0).toFixed(1)}s</span>`:'')}</div>
       <label class="row muted" style="gap:6px"><input type="checkbox" class="chk" data-sel="${i}" ${d.sel?'checked':''}>선택</label></div>
     <div class="fields">
       ${isC?`<span class="pill g-crisis" style="align-self:flex-start">${d.kind==='video'?'위기대응 영상':'위기대응 사진'}</span>`:`<div class="seg" role="group" aria-label="평가"><button type="button" class="good" data-gi="${i}" data-g="good" aria-pressed="${d.grade==='good'}">우수</button><button type="button" class="bad" data-gi="${i}" data-g="bad" aria-pressed="${d.grade==='bad'}">미흡</button></div>`}
       <input type="text" id="pl_${d.key}" placeholder="장소 (예: 지하2층 기계실)" value="${esc(d.place)}" maxlength="60">
       <textarea id="ds_${d.key}" placeholder="간단 설명" maxlength="200" rows="2">${esc(d.desc)}</textarea>
       <div class="row">${d.kind==='video'?'':`<button type="button" class="btn sm" data-ci="${i}">원 표시${d.circles.length?` (${d.circles.length})`:''}</button>`}<button type="button" class="btn sm danger" data-x="${i}">빼기</button></div>
-    </div></div>`).join('');
+    </div></div>`).join('')+'</div>';
   const nSel=drafts.filter(d=>d.sel).length;
   bulk.hidden=false;
   bulk.innerHTML=`${isC?'':`<span class="muted">${nSel?`선택 ${nSel}장`:'선택 없음'}</span><button class="btn sm" id="toGood" ${nSel?'':'disabled'}>선택 → 우수</button><button class="btn sm" id="toBad" ${nSel?'':'disabled'}>선택 → 미흡</button>`}
