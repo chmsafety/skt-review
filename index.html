@@ -1146,7 +1146,9 @@ $('#modeTag').hidden=SERVER;
       :`<div>크롬·엣지 주소창 오른쪽의 <b>설치</b> 아이콘이나 메뉴(⋮)의 <b>앱 설치</b> / <b>홈 화면에 추가</b>를 누르세요.</div>`}<div class="row" style="justify-content:flex-end"><button class="btn pri" id="ivOk">확인</button></div></div>`;
     layer.appendChild(m);$('#ivOk',m).onclick=()=>m.remove()};
 })();
-if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW',e)))}
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW',e)));
+  // 새 화면 파일이 배포돼 서비스 워커가 바뀌면, 막 연 직후(15초 안)일 때만 한 번 새로고침해 최신 화면으로
+  const hadC=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{try{const l=+sessionStorage.getItem('skt_swr')||0;if(hadC&&performance.now()<15000&&Date.now()-l>60000){sessionStorage.setItem('skt_swr',Date.now());location.reload()}}catch(e){}})}
 if(!window.indexedDB){app.innerHTML='<div class="empty">이 브라우저는 저장 기능을 지원하지 않습니다. 크롬이나 사파리 최신 버전으로 열어 주세요.</div>'}else route();
 </script>
 </body>
