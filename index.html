@@ -120,6 +120,7 @@ textarea{resize:vertical;min-height:64px;line-height:1.45}
 .seg button[aria-pressed="true"].bad{background:var(--bad);color:#fff}
 .bulk{position:sticky;bottom:0;z-index:15;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;box-shadow:0 -4px 16px rgba(0,0,0,.06)}
 .chk{width:22px;height:22px;accent-color:var(--accent)}
+.uptag{font-size:12px;color:var(--ink-3);font-weight:600}.uptag.ok{color:var(--ok)}.uptag.up{color:var(--accent)}.uptag.err{color:var(--bad)}
 .drop{border:2px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;color:var(--ink-2);background:var(--surface);transition:border-color .15s,background .15s}
 .drop b{color:var(--ink)}
 .drop.on{border-color:var(--accent);background:var(--accent-soft)}
@@ -161,6 +162,10 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .cap small{display:block;font-size:.62em;font-weight:500;color:#B9C6D2}
 .show .meta{position:absolute;right:20px;top:18px;font-size:14px;color:#B9C6D2;display:flex;gap:12px;align-items:center}
 .show .meta .btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#F2F5F8;min-height:34px;padding:4px 12px;font-size:13px}
+.show .cover{text-align:center;display:flex;flex-direction:column;align-items:center;gap:clamp(14px,2.4vh,28px)}
+.show .cover .mk{width:clamp(56px,7vw,96px);height:8px;border-radius:4px;background:linear-gradient(90deg,#E53935 0 50%,#1E88E5 50% 100%)}
+.show .cover .k{font-size:clamp(22px,3.4vw,46px);font-weight:600;letter-spacing:.08em;color:#C9D6E2}
+.show .cover h2{margin:0;font-size:clamp(52px,10vw,140px);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:#FFFFFF;text-wrap:balance}
 .show .div{text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center}
 .show .div .n{font-family:var(--f-mono);color:#7F93A6;font-size:22px}
 .show .div h3{font-size:clamp(40px,7vw,88px);margin:0;letter-spacing:-.03em}
@@ -335,8 +340,18 @@ const SAPI={
   async photos(id){return (await this.call('photos',{id})).photos},
   async upload(blob,roundId,name,onPart){
     const u=await this.call('upBegin',{roundId,name:name||'file',mime:blob.type||'application/octet-stream'});const n=Math.ceil(blob.size/CH)||1;
-    for(let i=0;i<n;i++){await this.call('upChunk',{upId:u.upId,i,data:await b64(blob.slice(i*CH,(i+1)*CH))});onPart&&onPart((i+1)/n)}
+    let next=0,done=0;
+    await Promise.all(Array.from({length:Math.min(3,n)},async()=>{while(next<n){const i=next++;await this.call('upChunk',{upId:u.upId,i,data:await b64(blob.slice(i*CH,(i+1)*CH))});done++;onPart&&onPart(done/n)}}));
     return (await this.call('upEnd',{upId:u.upId,n})).id},
+  /** 고르는 즉시 파일만 먼저 올리기 → {fileId, thumbId} */
+  async preUpload(roundId,blob,thumb,name){
+    let out;
+    if(blob.size<=3*1024*1024)out=await this.call('fileAdd',{roundId,name,mime:blob.type||'image/jpeg',data:await b64(blob),thumb:thumb?await b64(thumb):''});
+    else{const [fid,t]=await Promise.all([this.upload(blob,roundId,name),thumb?this.call('fileAdd',{roundId,name:'t_'+name,thumb:await b64(thumb)}):Promise.resolve({})]);out={fileId:fid,thumbId:t.thumbId}}
+    try{if(out.fileId)await IDB.put('blobs',blob,out.fileId);if(thumb&&out.thumbId)await IDB.put('blobs',thumb,out.thumbId)}catch(e){}
+    return out},
+  async createPhotos(metas){const j=await this.call('photosCreate',{metas});for(const p of j.photos)patchList('photos:'+p.roundId,{...p});return j.photos},
+  dropFiles(roundId,ids){ids=ids.filter(Boolean);if(ids.length)this.call('fileDrop',{roundId,ids}).catch(()=>{})},
   async savePhoto(meta,blob,thumb){
     let j;
     if(!blob)j=await this.call('photoSave',{meta});
@@ -378,9 +393,9 @@ async function loadBitmap(blob){
   return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=URL.createObjectURL(blob)});
 }
 function canvasBlob(c,type='image/jpeg',q=.85){return new Promise(ok=>c.toBlob(ok,type,q))}
-async function shrink(blob,max){const bm=await loadBitmap(blob);const w0=bm.width,h0=bm.height;const k=Math.min(1,max/Math.max(w0,h0));
+async function shrink(blob,max,q=.85){const bm=await loadBitmap(blob);const w0=bm.width,h0=bm.height;const k=Math.min(1,max/Math.max(w0,h0));
   const c=document.createElement('canvas');c.width=Math.round(w0*k);c.height=Math.round(h0*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
-  return {blob:await canvasBlob(c),w:c.width,h:c.height}}
+  return {blob:await canvasBlob(c,'image/jpeg',q),w:c.width,h:c.height}}
 async function videoInfo(file){return new Promise(ok=>{const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';
   const u=URL.createObjectURL(file);v.src=u;let done=false;
   const fin=async()=>{if(done)return;done=true;const c=document.createElement('canvas');const w=v.videoWidth||640,h=v.videoHeight||360;const k=Math.min(1,480/Math.max(w,h));
@@ -794,6 +809,15 @@ async function viewUpload(code){
   $('#inVid').onchange=e=>addFiles(e.target.files,r,who,true);
   drawDrafts(r,who);drawMine(r,who);
 }
+/* 고르는 즉시 뒤에서 파일 올리기(동시에 6개) — 설명을 쓰는 동안 올라감 */
+const PREQ={run:0,q:[]};
+function startPre(d,r){if(!SERVER)return;d.pre=null;d.st='wait';setPreTag(d);
+  d.pre=new Promise((ok,no)=>{PREQ.q.push({d,r,ok,no});pumpPre()});d.pre.catch(()=>{})}
+function pumpPre(){while(PREQ.run<6&&PREQ.q.length){const {d,r,ok,no}=PREQ.q.shift();PREQ.run++;d.st='up';setPreTag(d);
+  API.preUpload(r.id,d.file,d.thumb,(d.part+'_'+d.key)).then(x=>{d.ids=x;d.st='ok';setPreTag(d);ok(x)}).catch(e=>{d.st='err';d.err=e.message;setPreTag(d);no(e)}).finally(()=>{PREQ.run--;pumpPre()})}}
+function setPreTag(d){const el=document.getElementById('st_'+d.key);if(!el)return;
+  el.className='uptag '+(d.st||'');el.textContent=d.st==='ok'?'✓ 올라감':d.st==='up'?'올리는 중…':d.st==='err'?'다시 시도 필요':d.st==='wait'?'대기':'';}
+addEventListener('beforeunload',e=>{if(drafts.length&&location.hash.startsWith('#u/')){e.preventDefault();e.returnValue=''}});
 async function addFiles(files,r,who,isVideo){
   files=[...(files||[])];if(!files.length)return;
   toast(`${files.length}개를 불러오는 중…`,1500);
@@ -802,9 +826,9 @@ async function addFiles(files,r,who,isVideo){
     try{
       if(isVideo||/^video\//.test(f.type)){if(who.part!=='crisis'){toast('영상은 위기대응 파트에서만 올릴 수 있습니다.');continue}
         const inf=await videoInfo(f);Object.assign(d,{kind:'video',file:f,dur:inf.dur,w:inf.w,h:inf.h,thumb:inf.thumb,tw:inf.tw,th:inf.th})}
-      else{const m=await shrink(f,1600);const t=await shrink(m.blob,480);Object.assign(d,{kind:'photo',file:m.blob,w:m.w,h:m.h,thumb:t.blob,tw:t.w,th:t.h})}
+      else{const m=await shrink(f,1440,.82);const t=await shrink(m.blob,400,.75);Object.assign(d,{kind:'photo',file:m.blob,w:m.w,h:m.h,thumb:t.blob,tw:t.w,th:t.h})}
       d.url=URL.createObjectURL(d.kind==='video'?d.thumb:d.file);
-      drafts.push(d);
+      drafts.push(d);startPre(d,r);
     }catch(e){console.error(e);toast(`「${f.name}」을(를) 읽지 못했습니다.`)}
   }
   drawDrafts(r,who);
@@ -816,7 +840,7 @@ function drawDrafts(r,who){
   box.innerHTML=`<div class="row" style="justify-content:space-between"><h2>올릴 사진 <span class="num">${drafts.length}</span></h2><label class="row muted"><input type="checkbox" class="chk" id="selAll" ${drafts.every(d=>d.sel)?'checked':''}> 전체 선택</label></div><div class="dgrid">`+
   drafts.map((d,i)=>`<div class="draft ${d.sel?'sel':''}" data-k="${d.key}">
     <div class="stack" style="gap:6px"><div class="box" ${d.kind==='video'?'':`data-ci="${i}" style="cursor:pointer" title="눌러서 원 표시"`}>${frameHTML({...d,kind:d.kind},d.url,4/3,d.kind==='video'?`<span class="vtag">${(d.dur||0).toFixed(1)}s</span>`:'')}</div>
-      <label class="row muted" style="gap:6px"><input type="checkbox" class="chk" data-sel="${i}" ${d.sel?'checked':''}>선택</label></div>
+      <label class="row muted" style="gap:6px"><input type="checkbox" class="chk" data-sel="${i}" ${d.sel?'checked':''}>선택</label>${SERVER?`<span id="st_${d.key}" class="uptag"></span>`:''}</div>
     <div class="fields">
       ${isC?`<span class="pill g-crisis" style="align-self:flex-start">${d.kind==='video'?'위기대응 영상':'위기대응 사진'}</span>`:`<div class="seg" role="group" aria-label="평가"><button type="button" class="good" data-gi="${i}" data-g="good" aria-pressed="${d.grade==='good'}">우수</button><button type="button" class="bad" data-gi="${i}" data-g="bad" aria-pressed="${d.grade==='bad'}">미흡</button></div>`}
       <input type="text" id="pl_${d.key}" placeholder="장소 (예: 지하2층 기계실)" value="${esc(d.place)}" maxlength="60">
@@ -831,11 +855,27 @@ function drawDrafts(r,who){
   $('#selAll').onchange=e=>{sync();drafts.forEach(d=>d.sel=e.target.checked);drawDrafts(r,who)};
   $$('[data-sel]').forEach(c=>c.onchange=()=>{sync();drafts[+c.dataset.sel].sel=c.checked;drawDrafts(r,who)});
   $$('[data-gi]').forEach(b=>b.onclick=()=>{sync();drafts[+b.dataset.gi].grade=b.dataset.g;drawDrafts(r,who)});
-  $$('[data-x]').forEach(b=>b.onclick=()=>{sync();const d=drafts.splice(+b.dataset.x,1)[0];URL.revokeObjectURL(d.url);drawDrafts(r,who)});
+  $$('[data-x]').forEach(b=>b.onclick=()=>{sync();const d=drafts.splice(+b.dataset.x,1)[0];URL.revokeObjectURL(d.url);
+    if(SERVER&&d.pre)d.pre.then(x=>API.dropFiles(r.id,[x.fileId,x.thumbId])).catch(()=>{});drawDrafts(r,who)});
+  drafts.forEach(setPreTag);
   $$('[data-ci]').forEach(b=>b.onclick=()=>{sync();const d=drafts[+b.dataset.ci];openCircleEditor(URL.createObjectURL(d.file),d.w,d.h,d.circles,res=>{d.circles=res;drawDrafts(r,who)})});
   const setG=g=>{sync();drafts.forEach(d=>{if(d.sel){d.grade=g;d.sel=false}});drawDrafts(r,who)};
   if(!isC){$('#toGood').onclick=()=>setG('good');$('#toBad').onclick=()=>setG('bad')}
   $('#upAll').onclick=async()=>{sync();const btn=$('#upAll');btn.disabled=true;const pr=$('#upProg');pr.hidden=false;
+    if(SERVER){const list=[...drafts];const base=Date.now();let done=0;
+      const upd=()=>{done=list.filter(d=>d.st==='ok').length;pr.firstChild.style.width=(done/list.length*90)+'%';btn.textContent=`올리는 중 ${done}/${list.length}`};
+      const tick=setInterval(upd,300);upd();
+      for(const d of list)if(d.st==='err'||!d.pre)startPre(d,r);
+      const res=await Promise.allSettled(list.map(d=>d.pre));
+      const ready=list.filter((d,i)=>res[i].status==='fulfilled');
+      const metas=ready.map(d=>{d.id=d.id||'P'+uid(10);const k=list.indexOf(d);return {id:d.id,roundId:r.id,part:d.part,grade:d.grade,kind:d.kind,place:d.place.trim(),desc:d.desc.trim(),circles:d.circles,
+        w:d.w,h:d.h,tw:d.tw,th:d.th,dur:d.dur||0,name:d.name,shotAt:d.shotAt,by:who.name,order:base+k,createdAt:Date.now(),fileId:d.ids.fileId,thumbId:d.ids.thumbId||''}});
+      let ok=0,errMsg='';
+      for(let i=0;i<metas.length;i+=50){try{await API.createPhotos(metas.slice(i,i+50));for(const m of metas.slice(i,i+50)){const d=ready.find(x=>x.id===m.id);drafts.splice(drafts.indexOf(d),1);URL.revokeObjectURL(d.url);ok++}}catch(e){errMsg=e.message}}
+      clearInterval(tick);pr.firstChild.style.width='100%';
+      const fail=list.length-ok;const why=errMsg||(list.find(d=>d.st==='err')||{}).err||'';
+      toast(fail?`${ok}개 올림, ${fail}개 실패 (${why}) — 실패한 것은 목록에 남아 있으니 다시 올리기를 눌러 주세요.`:`${ok}개를 올렸습니다.`,fail?6000:2600);
+      drawDrafts(r,who);drawMine(r,who);return}
     const list=[...drafts];let n=0,fail=0,lastErr='';const base=Date.now();let next=0;
     const one=async d=>{const k=list.indexOf(d);try{
       d.id=d.id||'P'+uid(10);
@@ -866,7 +906,7 @@ function paintMine(all,r,who){
 
 /* ================= 강평 화면 ================= */
 function buildSlides(r,photos){
-  const S=[];
+  const S=photos.length?[{t:'cover'}]:[];
   for(const p of PARTS){
     const list=photos.filter(x=>x.part===p.k);if(!list.length)continue;
     const i=PARTS.indexOf(p)+1;
@@ -890,24 +930,25 @@ async function viewShow(id){
   if(!r||!photos){[r,photos]=await freshP;if(!r){location.hash='#';return}cSet('round:'+id,r);cSet('photos:'+id,photos)}
   photos.filter(p=>p.kind!=='video').forEach(p=>API.getBlob(p.fileId).catch(()=>{}));
   if(r.mergedId)blobUrl(r.mergedId).catch(()=>{});
-  let S=buildSlides(r,photos);let idx=Math.min(lsGet('skt_show_'+id,0),Math.max(0,S.length-1));
+  let S=buildSlides(r,photos);let idx=0;
   app.innerHTML='';
   const el=document.createElement('div');el.className='show';el.tabIndex=0;layer.appendChild(el);document.body.style.overflow='hidden';
   const ph=async(x,maxW,maxH)=>{const u=await blobUrl(x.fileId);const k=Math.min(maxW/x.w,maxH/x.h);const W=Math.floor(x.w*k),H=Math.floor(x.h*k);
     return `<div class="ph" style="width:${W}px;height:${H}px"><img src="${u}" alt=""><svg viewBox="0 0 ${x.w} ${x.h}" preserveAspectRatio="none">${ellipses(x.circles,x.w,x.h,Math.max(4,x.w*.008))}</svg></div>`};
   const render=async()=>{
     if(!S.length){el.innerHTML=`<div class="st"><div class="div"><h3 style="font-size:36px">올라온 사진이 없습니다</h3><button class="btn" id="shX">나가기</button></div></div>`;$('#shX',el).onclick=exit;return}
-    const s=S[idx];lsSet('skt_show_'+id,idx);
+    const s=S[idx];lsSet('skt_show_'+id,idx);const pn=s.p?s.p.n:'표지';
     const vw=innerWidth,vh=innerHeight;const pad=vw<560?16:48;
     let inner='';
-    if(s.t==='div'){inner=`<div class="div"><div class="n">${String(s.i).padStart(2,'0')} / ${PARTS.length}</div><h3>${s.p.n}</h3><div class="c">${s.counts?`<span style="background:#B26A00">${s.counts}</span>`:`<span style="background:#1565C0">우수 ${s.good}</span><span style="background:#C62828">미흡 ${s.bad}</span>`}</div></div>`}
+    if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2></div>`}
+    else if(s.t==='div'){inner=`<div class="div"><div class="n">${String(s.i).padStart(2,'0')} / ${PARTS.length}</div><h3>${s.p.n}</h3><div class="c">${s.counts?`<span style="background:#B26A00">${s.counts}</span>`:`<span style="background:#1565C0">우수 ${s.good}</span><span style="background:#C62828">미흡 ${s.bad}</span>`}</div></div>`}
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190);inner+=`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span><div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const cw=(vw-pad-14)/2,chh=(vh-150-14)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh)}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}</div>`));
       inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div><span class="gb g-crisis">위기대응 ${s.page}/${s.pages}</span>`}
     else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#B9C6D2" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#B9C6D2">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
     el.innerHTML=`<div class="st">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
-      <div class="meta"><span>${s.p.n}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
+      <div class="meta"><span>${pn}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
     $('.nav.l',el).onclick=()=>go(-1);$('.nav.r',el).onclick=()=>go(1);
     $('#shX',el).onclick=exit;
     $('#shF',el).onclick=()=>{(document.fullscreenElement?document.exitFullscreen():el.requestFullscreen?.())?.catch?.(()=>{})};
