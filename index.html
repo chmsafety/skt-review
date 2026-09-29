@@ -995,19 +995,28 @@ function allocate(durs,total){ // 영상마다 앞부분을 잘라 합계가 tot
     if(next.length===idx.length){for(const i of next){out[i]+=share}left=0}idx=next}
   return out.map(v=>Math.max(0,+v.toFixed(2)));
 }
-function bgMusic(ac,out,dur){ // 합본 영상 배경음악: 직접 합성한 잔잔한 곡(Am–F–C–G, 저작권 걱정 없음), 작게 깔고 앞뒤 서서히
-  const VOL=.3,m=ac.createGain(),lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1600;lp.connect(m);m.connect(out);
-  const t0=ac.currentTime+.05,bar=2.4,hz=n=>440*Math.pow(2,(n-69)/12),prog=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]];
-  m.gain.setValueAtTime(0,t0);m.gain.linearRampToValueAtTime(VOL,t0+1.5);
-  const tone=(type,f,t,len,peak,att)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+att);g.gain.exponentialRampToValueAtTime(.0005,t+len);g.gain.linearRampToValueAtTime(0,t+len+.05);
-    o.connect(g);g.connect(lp);o.start(t);o.stop(t+len+.1)};
-  const bars=Math.ceil((dur+4)/bar);
+function bgMusic(ac,out,dur){ // 합본 영상 배경음악 「신속 대응」: 직접 합성(저작권 걱정 없음), 145BPM 4박 킥+16분 아르페지오(Am–F–C–G), 작게 깔고 앞뒤 서서히
+  const VOL=.16,bpm=145,prog=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]];
+  const m=ac.createGain(),comp=ac.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=4;comp.connect(m);m.connect(out);
+  const t0=ac.currentTime+.05,bt=60/bpm,bar=bt*4,hz=n=>440*Math.pow(2,(n-69)/12);
+  m.gain.setValueAtTime(0,t0);m.gain.linearRampToValueAtTime(VOL,t0+.4);
+  const nb=ac.createBuffer(1,ac.sampleRate,ac.sampleRate),nd=nb.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+  const env=(g,t,peak,att,len)=>{g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+att);g.gain.exponentialRampToValueAtTime(.0005,t+len);g.gain.linearRampToValueAtTime(0,t+len+.02)};
+  const tone=(type,f,t,len,peak,att=.005,cut=0)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;
+    let n=o;if(cut){const fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=cut;o.connect(fl);n=fl}
+    n.connect(g);g.connect(comp);env(g,t,peak,att,len);o.start(t);o.stop(t+len+.05)};
+  const noise=(t,len,peak,type,f)=>{const s=ac.createBufferSource(),fl=ac.createBiquadFilter(),g=ac.createGain();s.buffer=nb;fl.type=type;fl.frequency.value=f;
+    s.connect(fl);fl.connect(g);g.connect(comp);env(g,t,peak,.002,len);s.start(t,Math.random()*.5);s.stop(t+len+.05)};
+  const kick=t=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);
+    o.connect(g);g.connect(comp);env(g,t,.9,.002,.28);o.start(t);o.stop(t+.35)};
+  const bars=Math.ceil((dur+2)/bar);
   for(let b=0;b<bars;b++){const ch=prog[b%4],tb=t0+b*bar;
-    for(const n of ch)tone('triangle',hz(n),tb,bar+.3,.09,.7);
-    tone('sine',hz(ch[0]-12),tb,bar,.16,.08);
-    for(let k=0;k<8;k++)tone('sine',hz(ch[[0,1,2,1,0,2,1,2][k]]+12),tb+k*bar/8,.5,.05,.01)}
-  return{fadeOut(){const t=ac.currentTime;m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+.6)}};
+    for(let k=0;k<4;k++){kick(tb+k*bt);noise(tb+(k+.5)*bt,.045,.14,'highpass',7000);tone('sawtooth',hz(ch[0]-24),tb+(k+.5)*bt,bt*.4,.3,.004,600)}
+    if(b%2===1){noise(tb+3.5*bt,.16,.45,'highpass',1500);tone('triangle',190,tb+3.5*bt,.08,.25)}
+    const ar=[ch[0],ch[1],ch[2],ch[0]+12,ch[1]+12,ch[2]+12,ch[0]+12,ch[2]];
+    for(let k=0;k<16;k++)tone('sawtooth',hz(ar[k%8]+12),tb+k*bt/4,bt*.22,.06,.003,3000);
+    ch.forEach(n=>tone('triangle',hz(n),tb,bar,.05,.2))}
+  return{m,fadeOut(){const t=ac.currentTime;m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+.6)}};
 }
 async function mergeVideos(items,total,onProg){
   if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream)throw new Error('이 브라우저는 영상 합치기를 지원하지 않습니다. 노트북의 크롬이나 엣지에서 해 주세요.');
