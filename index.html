@@ -152,32 +152,34 @@ table.t input{min-height:34px;padding:5px 8px}
 .editor .cv svg{position:absolute;inset:0;width:100%;height:100%}
 .editor .hint{text-align:center;font-size:13px;color:#9FB0C0;padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px))}
 /* 강평 무대: 발표용 단일 어두운 화면 */
-.show{position:fixed;inset:0;z-index:70;background:#05080B;color:#F2F5F8;overflow:hidden;user-select:none}
+.show{position:fixed;inset:0;z-index:70;background:#E6E9ED;color:#15202B;overflow:hidden;user-select:none}
 .show .st{position:absolute;inset:0;display:grid;place-items:center;padding:60px 24px 118px}
 .show .ph{position:relative}
 .show .ph img{display:block;width:100%;height:100%}
 .show .ph svg{position:absolute;inset:0;width:100%;height:100%}
 .show .gb{position:absolute;left:24px;top:20px;font-size:26px;font-weight:700;padding:4px 18px;border-radius:8px;letter-spacing:.02em}
-.show .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;max-width:min(1100px,92vw);text-align:center;font-size:clamp(18px,2.4vw,30px);font-weight:600;line-height:1.35;background:rgba(0,0,0,.55);padding:10px 22px;border-radius:10px;text-wrap:balance}
-.show .cap small{display:block;font-size:.62em;font-weight:500;color:#B9C6D2}
-.show .meta{position:absolute;right:20px;top:18px;font-size:14px;color:#B9C6D2;display:flex;gap:12px;align-items:center}
-.show .meta .btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#F2F5F8;min-height:34px;padding:4px 12px;font-size:13px}
+.show .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;max-width:min(1100px,92vw);text-align:center;font-size:clamp(18px,2.4vw,30px);font-weight:600;line-height:1.35;background:rgba(255,255,255,.94);color:#15202B;box-shadow:0 2px 12px rgba(21,32,43,.12);padding:10px 22px;border-radius:10px;text-wrap:balance}
+.show .cap small{display:block;font-size:.62em;font-weight:500;color:#48566A}
+.show .meta{position:absolute;right:20px;top:18px;font-size:14px;color:#48566A;z-index:2;display:flex;gap:12px;align-items:center}
+.show .meta .btn{background:rgba(21,32,43,.06);border-color:rgba(21,32,43,.18);color:#15202B;min-height:34px;padding:4px 12px;font-size:13px}
 .show .cover{text-align:center;display:flex;flex-direction:column;align-items:center;gap:clamp(14px,2.4vh,28px)}
-.show .cover .mk{width:clamp(56px,7vw,96px);height:8px;border-radius:4px;background:linear-gradient(90deg,#E53935 0 50%,#1E88E5 50% 100%)}
-.show .cover .k{font-size:clamp(22px,3.4vw,46px);font-weight:600;letter-spacing:.08em;color:#C9D6E2}
-.show .cover h2{margin:0;font-size:clamp(52px,10vw,140px);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:#FFFFFF;text-wrap:balance}
+.show .cover .mk{width:clamp(56px,7vw,96px);height:8px;border-radius:4px;background:linear-gradient(90deg,#E6022D 0 50%,#F47920 50% 100%)}
+.show .cover .k{font-size:clamp(22px,3.4vw,46px);font-weight:600;letter-spacing:.08em;color:#48566A}
+.show .cover h2{margin:0;font-size:clamp(52px,10vw,140px);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:#15202B;text-wrap:balance}
 .show.light{background:#E6E9ED;color:#15202B}
 .show.light .cover .k{color:#48566A}
 .show.light .cover h2{color:#15202B}
 .show.light .meta{color:#48566A}
 .show.light .meta .btn{background:rgba(21,32,43,.06);border-color:rgba(21,32,43,.18);color:#15202B}
-.show .div{text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center}
+.show .div{text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center;position:relative;z-index:1}
+.show .art{position:absolute;inset:0;pointer-events:none;opacity:.22}
+.show .art svg{width:100%;height:100%}
 .show .div .n{font-family:var(--f-mono);color:#7F93A6;font-size:22px}
 .show .div h3{font-size:clamp(40px,7vw,88px);margin:0;letter-spacing:-.03em}
 .show .div .c{display:flex;gap:14px;font-size:22px}
 .show .div .c span{padding:6px 18px;border-radius:8px}
 .show .g4{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:14px;width:100%;height:100%}
-.show .g4 .cell{position:relative;display:grid;place-items:center;min-height:0;min-width:0;background:#0C1116;border-radius:8px;overflow:hidden}
+.show .g4 .cell{position:relative;display:grid;place-items:center;min-height:0;min-width:0;background:#D3D9E0;border-radius:8px;overflow:hidden}
 .show .g4 .cell .ph{max-width:100%;max-height:100%}
 .show .g4 .cell .cc{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);font-size:clamp(13px,1.4vw,18px);padding:6px 10px;text-align:center}
 .show video{max-width:100%;max-height:100%;background:#000;border-radius:6px}
@@ -910,6 +912,9 @@ function paintMine(all,r,who){
 }
 
 /* ================= 강평 화면 ================= */
+/* 분야 첫 장 배경 그림(선 그림, 직접 그림) */
+const ART_C={"env": "#2E7D32", "mech": "#1C4A73", "fire": "#C62828", "safe": "#B26A00", "crisis": "#E65100"};
+const ART={"env": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n<path d=\"M250 900V560\"/><path d=\"M250 700l-70-70M250 640l60-60\"/>\n<path d=\"M250 560c-120 0-190-70-170-160-60-50-30-160 60-170 20-90 150-110 200-40 90-30 170 50 140 130 70 40 50 170-50 190-40 50-120 60-180 50z\"/>\n<path d=\"M60 900h400\"/>\n<path d=\"M1300 250c-120 20-190 120-160 250 130-10 210-110 160-250z\"/><path d=\"M1150 490c40-80 90-140 150-200\"/>\n<path d=\"M1450 520c-90 0-140 80-110 170 90 0 140-80 110-170z\"/><path d=\"M1340 690c30-50 60-90 110-150\"/>\n<path d=\"M1180 700c0 50-40 90-80 90s-80-40-80-90c0-60 80-150 80-150s80 90 80 150z\"/>\n<g transform=\"translate(110,470)\"><path d=\"M620 160a90 90 0 0 1 150 0\" /><path d=\"M770 160l10-40-45 15\"/><path d=\"M800 220a90 90 0 0 1-75 130\"/><path d=\"M725 350l-40 5 30 30\"/><path d=\"M630 330a90 90 0 0 1-40-140\"/><path d=\"M590 190l0-40 40 25\"/></g>\n</g>", "mech": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1450,330 L1488,355 L1484,379 L1439,387 L1430,405 L1451,446 L1434,464 L1391,449 L1375,460 L1373,506 L1349,514 L1320,479 L1300,480 L1275,518 L1251,514 L1243,469 L1225,460 L1184,481 L1166,464 L1181,421 L1170,405 L1124,403 L1116,379 L1151,350 L1150,330 L1112,305 L1116,281 L1161,273 L1170,255 L1149,214 L1166,196 L1209,211 L1225,200 L1227,154 L1251,146 L1280,181 L1300,180 L1325,142 L1349,146 L1357,191 L1375,200 L1416,179 L1434,196 L1419,239 L1430,255 L1476,257 L1484,281 L1449,310Z\"/><circle cx=\"1300\" cy=\"330\" r=\"55\"/><circle cx=\"1300\" cy=\"330\" r=\"19\"/><path d=\"M1575,560 L1605,582 L1599,603 L1562,608 L1553,621 L1562,657 L1544,670 L1512,649 L1496,654 L1480,687 L1458,685 L1448,649 L1432,642 L1398,657 L1383,642 L1398,608 L1391,592 L1355,582 L1353,560 L1386,544 L1391,528 L1370,496 L1383,478 L1419,487 L1432,478 L1437,441 L1458,435 L1480,465 L1496,466 L1523,441 L1544,450 L1541,487 L1553,499 L1590,497 L1599,517 L1574,544Z\"/><circle cx=\"1480\" cy=\"560\" r=\"35\"/><circle cx=\"1480\" cy=\"560\" r=\"12\"/>\n<g transform=\"translate(-130,40)\"><path d=\"M0 640h220v-120h260\"/><path d=\"M0 700h280v-120h200\"/>\n<path d=\"M480 510v140M520 510v140\"/><path d=\"M500 510v-60M460 450h80\"/>\n<path d=\"M520 520h140M520 640h140\"/>\n<circle cx=\"300\" cy=\"300\" r=\"120\"/><path d=\"M300 300l70-60\"/><path d=\"M210 360a120 120 0 0 1 0-120M390 240a120 120 0 0 1 0 120\" stroke-dasharray=\"4 24\"/>\n<path d=\"M300 420v100\"/>\n</g></g>", "fire": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n<rect x=\"190\" y=\"360\" width=\"190\" height=\"460\" rx=\"70\"/><path d=\"M230 360v-60h110v60\"/><path d=\"M260 300v-60h80l60-40\"/><path d=\"M340 250c90 0 130 60 120 150\"/><path d=\"M460 400l30 70\"/>\n<rect x=\"225\" y=\"520\" width=\"120\" height=\"140\" rx=\"16\"/>\n<path d=\"M1330 820c-150 0-230-100-210-230 15-100 90-150 110-250 90 70 110 150 90 220 40-10 70-50 80-100 90 90 110 190 80 260-30 60-80 100-150 100z\"/>\n<path d=\"M1330 820c-60 0-90-45-80-100 8-45 50-70 60-120 50 40 90 90 90 140 0 50-30 80-70 80z\"/>\n<g transform=\"translate(620,-60)\"><path d=\"M700 0v110M650 110h100M670 110l-20 50h100l-20-50\"/><path d=\"M640 200l-40 50M700 200v60M760 200l40 50\"/><path d=\"M600 300l-30 40M700 300v50M800 300l30 40\"/></g>\n</g>", "safe": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n<path d=\"M110 560c0-150 110-260 250-260s250 110 250 260\"/><path d=\"M60 560h600v50H60z\"/><path d=\"M300 305v-40h120v40\"/><path d=\"M360 300v140\"/>\n<path d=\"M1330 180l-130 520h260z\"/><path d=\"M1250 500h160M1280 380h100\"/><path d=\"M1130 700h400v60h-400z\"/>\n<g transform=\"translate(0,450)\"><path d=\"M700 130l110-40 110 40v110c0 90-50 150-110 180-60-30-110-90-110-180z\"/><path d=\"M750 250l45 45 75-85\"/></g>\n</g>", "crisis": "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n<path d=\"M170 700v-190a150 150 0 0 1 300 0v190\"/><path d=\"M120 700h400v70H120z\"/><path d=\"M320 400v-40\"/><path d=\"M320 200v-70M160 250l-50-50M480 250l50-50M90 410H20M550 410h70\"/>\n<path d=\"M1150 420l260-150v400l-260-150z\"/><path d=\"M1150 420h-90v100h90\"/><path d=\"M1080 520l40 150h60l-30-150\"/><path d=\"M1470 360c40 40 40 120 0 160M1520 310c70 70 70 190 0 260\"/>\n<g transform=\"translate(0,520)\"><path d=\"M800 100l130 230H670z\"/><path d=\"M800 180v70M800 290v5\"/></g>\n</g>"};
 function buildSlides(r,photos){
   const S=photos.length?[{t:'cover'}]:[];
   for(const p of PARTS){
@@ -946,11 +951,11 @@ async function viewShow(id){
     const vw=innerWidth,vh=innerHeight;const pad=vw<560?16:48;
     let inner='';
     if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2></div>`}
-    else if(s.t==='div'){inner=`<div class="div"><div class="n">${String(s.i).padStart(2,'0')} / ${PARTS.length}</div><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
+    else if(s.t==='div'){inner=`<div class="art" aria-hidden="true" style="color:${ART_C[s.p.k]}"><svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">${ART[s.p.k]}</svg></div><div class="div"><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190);inner+=`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span><div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const cw=(vw-pad-14)/2,chh=(vh-150-14)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh)}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}</div>`));
       inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div><span class="gb g-crisis">위기대응 ${s.page}/${s.pages}</span>`}
-    else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#B9C6D2" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#B9C6D2">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
+    else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#48566A" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#48566A">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
     el.innerHTML=`<div class="st">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
       <div class="meta"><span>${pn}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
