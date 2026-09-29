@@ -166,6 +166,11 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .cover .mk{width:clamp(56px,7vw,96px);height:8px;border-radius:4px;background:linear-gradient(90deg,#E53935 0 50%,#1E88E5 50% 100%)}
 .show .cover .k{font-size:clamp(22px,3.4vw,46px);font-weight:600;letter-spacing:.08em;color:#C9D6E2}
 .show .cover h2{margin:0;font-size:clamp(52px,10vw,140px);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:#FFFFFF;text-wrap:balance}
+.show.light{background:#E6E9ED;color:#15202B}
+.show.light .cover .k{color:#48566A}
+.show.light .cover h2{color:#15202B}
+.show.light .meta{color:#48566A}
+.show.light .meta .btn{background:rgba(21,32,43,.06);border-color:rgba(21,32,43,.18);color:#15202B}
 .show .div{text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center}
 .show .div .n{font-family:var(--f-mono);color:#7F93A6;font-size:22px}
 .show .div h3{font-size:clamp(40px,7vw,88px);margin:0;letter-spacing:-.03em}
@@ -937,11 +942,11 @@ async function viewShow(id){
     return `<div class="ph" style="width:${W}px;height:${H}px"><img src="${u}" alt=""><svg viewBox="0 0 ${x.w} ${x.h}" preserveAspectRatio="none">${ellipses(x.circles,x.w,x.h,Math.max(4,x.w*.008))}</svg></div>`};
   const render=async()=>{
     if(!S.length){el.innerHTML=`<div class="st"><div class="div"><h3 style="font-size:36px">올라온 사진이 없습니다</h3><button class="btn" id="shX">나가기</button></div></div>`;$('#shX',el).onclick=exit;return}
-    const s=S[idx];lsSet('skt_show_'+id,idx);const pn=s.p?s.p.n:'표지';
+    const s=S[idx];el.classList.toggle('light',s.t==='cover');lsSet('skt_show_'+id,idx);const pn=s.p?s.p.n:'표지';
     const vw=innerWidth,vh=innerHeight;const pad=vw<560?16:48;
     let inner='';
     if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2></div>`}
-    else if(s.t==='div'){inner=`<div class="div"><div class="n">${String(s.i).padStart(2,'0')} / ${PARTS.length}</div><h3>${s.p.n}</h3><div class="c">${s.counts?`<span style="background:#B26A00">${s.counts}</span>`:`<span style="background:#1565C0">우수 ${s.good}</span><span style="background:#C62828">미흡 ${s.bad}</span>`}</div></div>`}
+    else if(s.t==='div'){inner=`<div class="div"><div class="n">${String(s.i).padStart(2,'0')} / ${PARTS.length}</div><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190);inner+=`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span><div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const cw=(vw-pad-14)/2,chh=(vh-150-14)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh)}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}</div>`));
       inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div><span class="gb g-crisis">위기대응 ${s.page}/${s.pages}</span>`}
