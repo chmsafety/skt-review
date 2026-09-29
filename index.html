@@ -285,7 +285,7 @@ const b64=blob=>new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok
 const b64blob=(d,mime)=>{const bin=atob(d);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:mime||'application/octet-stream'})};
 const CH=2*1024*1024;
 const auth=()=>{const a=lsGet('skt_auth',null);return a&&a.token&&a.exp>Date.now()?a:null};
-const BQ={q:new Map(),t:null};
+const BQ={q:new Map(),t:null};const BIGPROG=new Map();
 /* ---------- 빠른 화면 전환: 저장본 먼저 보여 주고 뒤에서 새로 받기 ---------- */
 const CK='skt_c1_';const MC=new Map();let NAVID=0,BUSY=0,INFLIGHT=0;
 function cGet(k){if(!SERVER)return null;if(MC.has(k))return MC.get(k);const v=lsGet(CK+k,null);if(v!=null)MC.set(k,v);return v}
@@ -361,8 +361,11 @@ const SAPI={
         if(blob)IDB.put('blobs',blob,id).catch(()=>{});
         w.forEach(x=>x.res(blob))}}
     catch(e){ws.forEach(([id,w])=>w.forEach(x=>x.rej(e)))}},
-  async fetchBig(id,f){const n=f.parts||Math.ceil(f.size/CH);const parts=[];for(let i=0;i<n;i++)parts.push(b64blob((await this.call('chunk',{id,i,roundId:this.rid})).data));return new Blob(parts,{type:f.mime})},
-  async putBlob(blob,id,roundId){const fid=await this.upload(blob,roundId,'위기대응_합본.'+(/mp4/.test(blob.type)?'mp4':'webm'));IDB.put('blobs',blob,fid).catch(()=>{});return fid},
+  async fetchBig(id,f){const n=f.parts||Math.ceil(f.size/CH);const parts=new Array(n);let done=0,next=0;const rid=this.rid;
+    const tell=()=>{const fn=BIGPROG.get(id);if(fn)try{fn(done,n)}catch(e){}};tell();
+    await Promise.all(Array.from({length:Math.min(3,n)},async()=>{while(next<n){const i=next++;parts[i]=b64blob((await this.call('chunk',{id,i,roundId:rid})).data);done++;tell()}}));
+    return new Blob(parts,{type:f.mime})},
+  async putBlob(blob,id,roundId,onPart){const fid=await this.upload(blob,roundId,'위기대응_합본.'+(/mp4/.test(blob.type)?'mp4':'webm'),onPart);IDB.put('blobs',blob,fid).catch(()=>{});return fid},
   delBlob(id){IDB.del('blobs',id).catch(()=>{});return this.call('fileDelete',{id})},
   async sendMail(o){const j=await this.call('mailSend',{id:o.round.id,name:o.name,data:await b64(o.file),counts:o.counts});
     const rr=cGet('round:'+o.round.id);if(rr){rr.sentAt=j.sentAt;rr.reviewedAt=rr.reviewedAt||j.sentAt;cSet('round:'+o.round.id,rr)}return {ok:true,to:j.to,cc:j.cc}}
@@ -587,13 +590,22 @@ function renderRound(id,r,st,photos){
   $('#editRound').onclick=()=>editRoundBox(r,st);
   $('#xlBtn').onclick=async()=>{const b=await makeExcel(r,photos,'#xlProg');if(b)download(b,xlName(r))};
   $('#endBtn').onclick=()=>endReview(r,site,st,photos);
-  if(r.mergedId){blobUrl(r.mergedId).then(u=>{$('#mergedView').innerHTML=`<video src="${u}" controls playsinline style="max-width:100%;max-height:360px;border-radius:8px;background:#000"></video>`});
+  if(r.mergedId){const mv=$('#mergedView');mv.innerHTML='<div class="muted">합본 영상 불러오는 중…</div>';
+    BIGPROG.set(r.mergedId,(d,n)=>{const v=$('#mergedView');if(v&&!v.querySelector('video'))v.innerHTML=`<div class="muted">합본 영상 불러오는 중 ${d}/${n}</div>`});
+    blobUrl(r.mergedId).then(u=>{const v=$('#mergedView');if(v&&u)v.innerHTML=`<video src="${u}" controls playsinline style="max-width:100%;max-height:360px;border-radius:8px;background:#000"></video>`}).catch(e=>{const v=$('#mergedView');if(v)v.innerHTML='<div class="muted">합본 영상을 불러오지 못했습니다: '+esc(e.message)+'</div>'});
     const dl=$('#mergedDl');if(dl)dl.onclick=async()=>{const b=await API.getBlob(r.mergedId);download(b,`${r.siteName} 위기대응_${r.date.replaceAll('-','').slice(2)}.${/mp4/.test(b.type)?'mp4':'webm'}`)}}
   const mb=$('#mergeBtn');if(mb)mb.onclick=async()=>{mb.disabled=true;const pr=$('#mProg');pr.hidden=false;
-    try{const blob=await mergeVideos(vids,VIDEO_TOTAL,(f,msg)=>{pr.firstChild.style.width=(f*100).toFixed(0)+'%';$('#mMsg').textContent=msg||''});
-      if(r.mergedId)await API.delBlob(r.mergedId);urlCache.delete(r.mergedId);
-      r.mergedId=await API.putBlob(blob,null,r.id);r.mergedAt=Date.now();await API.saveRound(r);toast('위기대응 영상을 만들었습니다.');route()}
-    catch(e){console.error(e);$('#mMsg').textContent='영상을 만들지 못했습니다: '+e.message;mb.disabled=false}};
+    const guard=e=>{e.preventDefault();e.returnValue=''};addEventListener('beforeunload',guard);BUSY++;
+    const msg=t=>{const m=$('#mMsg');if(m)m.textContent=t};const bar=f=>{const p=$('#mProg');if(p)p.firstChild.style.width=(f*100).toFixed(0)+'%'};
+    try{const blob=await mergeVideos(vids,VIDEO_TOTAL,(f,t)=>{bar(f*.5);msg('1/2 영상 합치는 중 · '+(t||''))});
+      const old=r.mergedId;
+      msg(`2/2 서버에 저장하는 중 (${(blob.size/1048576).toFixed(1)}MB) · 이 화면을 닫지 마세요`);
+      const fid=await API.putBlob(blob,null,r.id,f=>{bar(.5+f*.5);msg(`2/2 서버에 저장하는 중 ${Math.round(f*100)}% · 이 화면을 닫지 마세요`)});
+      r.mergedId=fid;r.mergedAt=Date.now();await API.saveRound(r);
+      if(old){urlCache.delete(old);API.delBlob(old).catch(()=>{})}
+      removeEventListener('beforeunload',guard);BUSY--;
+      toast('위기대응 영상을 저장했습니다. 강평 화면에서 재생됩니다.',4000);route()}
+    catch(e){console.error(e);removeEventListener('beforeunload',guard);BUSY--;msg('영상을 만들지 못했습니다: '+e.message);mb.disabled=false}};
   // 사진 카드 (썸네일은 뒤에서 채우고, 버튼은 바로 누를 수 있게)
   $$('[data-mv]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.id);movePhoto(p,photos,+b.dataset.mv);renderRound(id,r,st,photos)});
   $$('[data-edit]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.edit);editPhotoBox(p,route,true)});
@@ -877,6 +889,7 @@ async function viewShow(id){
   const freshP=Promise.all([API.round(id),API.photos(id)]);
   if(!r||!photos){[r,photos]=await freshP;if(!r){location.hash='#';return}cSet('round:'+id,r);cSet('photos:'+id,photos)}
   photos.filter(p=>p.kind!=='video').forEach(p=>API.getBlob(p.fileId).catch(()=>{}));
+  if(r.mergedId)blobUrl(r.mergedId).catch(()=>{});
   let S=buildSlides(r,photos);let idx=Math.min(lsGet('skt_show_'+id,0),Math.max(0,S.length-1));
   app.innerHTML='';
   const el=document.createElement('div');el.className='show';el.tabIndex=0;layer.appendChild(el);document.body.style.overflow='hidden';
@@ -891,7 +904,7 @@ async function viewShow(id){
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190);inner+=`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span><div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const cw=(vw-pad-14)/2,chh=(vh-150-14)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh)}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}</div>`));
       inner=`<div class="g4" style="width:${vw-pad}px;height:${vh-150}px">${cells.join('')}</div><span class="gb g-crisis">위기대응 ${s.page}/${s.pages}</span>`}
-    else if(s.t==='video'){inner=r.mergedId?`<video id="shV" src="${await blobUrl(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video><span class="gb g-crisis">위기대응 영상</span>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#B9C6D2">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
+    else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#B9C6D2" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#B9C6D2">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
     el.innerHTML=`<div class="st">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
       <div class="meta"><span>${s.p.n}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
@@ -900,6 +913,8 @@ async function viewShow(id){
     $('#shF',el).onclick=()=>{(document.fullscreenElement?document.exitFullscreen():el.requestFullscreen?.())?.catch?.(()=>{})};
     const e=$('#shE',el);if(e)e.onclick=()=>quickEdit(s.x);
     const v=$('#shV',el);if(v)v.play().catch(()=>{});
+    if(s.t==='video'&&r.mergedId&&!v){const my=idx,mid=r.mergedId;BIGPROG.set(mid,(d,n)=>{const t=$('#shVL',el);if(t)t.textContent=`영상 불러오는 중 ${d}/${n}`});
+      blobUrl(mid).then(u=>{if(u&&idx===my&&document.body.contains(el))render()}).catch(e=>{const t=$('#shVL',el);if(t)t.textContent='영상을 불러오지 못했습니다: '+e.message})}
   };
   const go=d=>{const n=idx+d;if(n<0||n>=S.length)return;idx=n;render()};
   const exit=()=>{removeEventListener('keydown',key);removeEventListener('resize',rs);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});location.hash='#r/'+id};
@@ -914,7 +929,7 @@ async function viewShow(id){
   freshP.then(([fr,fp])=>{if(!fr||!document.body.contains(el))return;cSet('round:'+id,fr);cSet('photos:'+id,fp);
     if(JSON.stringify([fr,fp])===JSON.stringify([r,photos]))return;
     const key=x=>x.t+'|'+(x.x?x.x.id:'')+'|'+(x.p?x.p.k:'')+'|'+(x.page||'');const cur=S[idx]?key(S[idx]):'';
-    r=fr;photos=fp;S=buildSlides(r,photos);idx=Math.max(0,S.findIndex(x=>key(x)===cur));
+    r=fr;photos=fp;S=buildSlides(r,photos);if(r.mergedId)blobUrl(r.mergedId).catch(()=>{});idx=Math.max(0,S.findIndex(x=>key(x)===cur));
     photos.filter(p=>p.kind!=='video').forEach(p=>API.getBlob(p.fileId).catch(()=>{}));render()}).catch(()=>{});
 }
 
@@ -940,7 +955,7 @@ async function mergeVideos(items,total,onProg){
     for(const v of vids){ac.createMediaElementSource(v).connect(dest)}const at=dest.stream.getAudioTracks()[0];if(at)stream.addTrack(at)}catch(e){ac=null;vids.forEach(v=>v.muted=true)}
   const types=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
   const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
-  const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:4_000_000}:{});const chunks=[];
+  const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:2_500_000}:{});const chunks=[];
   rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
   const stopped=new Promise(ok=>rec.onstop=ok);
   if(ac&&ac.state==='suspended')await ac.resume();
