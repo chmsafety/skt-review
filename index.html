@@ -184,6 +184,7 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .div .c span{padding:6px 18px;border-radius:8px}
 .show .g4{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;width:100%;height:100%}
 .show .st.gst{padding:56px 12px 12px}
+.show .g4.n1{grid-template-columns:1fr;grid-template-rows:1fr}.show .g4.n2{grid-template-rows:1fr}.show .g4.n1 .cell{place-items:center!important}.show .g4.n2 .cell{align-items:center!important}
 .show .g4 .cell:nth-child(odd){justify-items:end}.show .g4 .cell:nth-child(even){justify-items:start}.show .g4 .cell:nth-child(-n+2){align-items:end}.show .g4 .cell:nth-child(n+3){align-items:start}
 .show .g4 .cell{position:relative;display:grid;place-items:center;min-height:0;min-width:0;background:transparent;overflow:hidden}
 .show .g4 .cell .ph{max-width:100%;max-height:100%}
@@ -961,8 +962,8 @@ async function viewShow(id){
     if(s.t==='cover'){inner=`<div class="cover"><i class="mk" aria-hidden="true"></i><div class="k">SKT ${esc(r.half||'')} 사옥점검</div><h2>${esc(r.siteName)}</h2>${korD(r.date)?`<div class="dt">${korD(r.date)}</div>`:''}</div>`}
     else if(s.t==='div'){inner=`<div class="art" aria-hidden="true" style="background-image:url('${artUrl(s.p.k)}')"></div><div class="div"><h3>${s.p.n}</h3>${s.counts?`<div class="c"><span style="background:#B26A00">${s.counts}</span></div>`:''}</div>`}
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190,s.x.grade==='bad'?'<span class="gb g-fix">개선필요</span>':`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span>`);inner+=`<div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
-    else if(s.t==='grid'){const gw=vw-24,gh=vh-68,cw=(gw-10)/2,chh=(gh-10)/2;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh,x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:'')}</div>`));
-      inner=`<div class="g4" style="width:${gw}px;height:${gh}px">${cells.join('')}</div>`}
+    else if(s.t==='grid'){const gw=vw-24,gh=vh-68,n=s.items.length,co=n>1?2:1,ro=n>2?2:1,cw=(gw-(co-1)*10)/co,chh=(gh-(ro-1)*10)/ro;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh,x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:'')}</div>`));
+      inner=`<div class="g4 n${Math.min(n,3)}" style="width:${gw}px;height:${gh}px">${cells.join('')}</div>`}
     else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#48566A" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#48566A">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
     el.innerHTML=`<div class="st${s.t==='grid'?' gst':''}">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
