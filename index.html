@@ -317,7 +317,7 @@ function netBar(d){INFLIGHT=Math.max(0,INFLIGHT+d);const b=document.getElementBy
 async function swr(spec,render,opt={}){
   const nav=NAVID;const ks=Object.keys(spec);const cached={};let have=SERVER;
   for(const k of ks){const v=cGet(k);if(v==null)have=false;cached[k]=v}
-  if(have)await render(cached,true);
+  if(have){try{await render(cached,true)}catch(e){console.warn('저장본 표시 실패 — 서버에서 새로 받음',e);ks.forEach(k=>cSet(k,null));have=false}}
   let fresh;
   try{const vals=await Promise.all(ks.map(k=>spec[k]()));if(BUSY&&have)return;fresh={};ks.forEach((k,i)=>{fresh[k]=vals[i];cSet(k,vals[i])})}
   catch(e){if(!have)throw e;console.warn(e);if(!e.relogin)toast('최신 내용을 불러오지 못해 저장된 내용을 보여 드립니다.');else route();return}
@@ -333,6 +333,7 @@ const SAPI={
     const body=JSON.stringify({a,token:(auth()||{}).token||'',code:this.code||'',...p});let last;
     for(let t=0;t<3;t++){
       try{netBar(1);let res;try{res=await fetch(SERVER_URL,{method:'POST',body})}finally{netBar(-1)}let j;try{j=await res.json()}catch(e){throw new Error('서버 응답을 읽지 못했습니다('+res.status+')')}
+        if(j&&j.hint&&'version' in j)throw new Error('서버 응답을 읽지 못했습니다(다시 시도)'); // 요청이 GET 으로 처리된 응답(안내문)은 저장하지 않고 다시 시도
         if(j.ok===false){const e=new Error(j.error==='AUTH'?(this.code?'링크가 올바르지 않습니다.':'다시 로그인해 주세요.'):String(j.error||'서버 오류').replace(/^CLOSED: /,''));e.fatal=true;e.auth=j.error==='AUTH';throw e}
         return j}
       catch(e){last=e;if(e.fatal)break;if(!(e instanceof TypeError)&&!/응답/.test(e.message))break;await sleep(800*(t+1))}
