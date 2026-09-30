@@ -343,7 +343,7 @@ const SAPI={
     throw last;
   },
   settings(){return this.call('settings')},
-  async saveSettings(s){const j=await this.call('settingsSave',{sites:s.sites,inspectors:s.inspectors,cc:s.cc});cSet('settings',{sites:j.sites,inspectors:j.inspectors,cc:j.cc});return j},
+  async saveSettings(s){const j=await this.call('settingsSave',{sites:s.sites,inspectors:s.inspectors,cc:s.cc,photoTo:s.photoTo||''});cSet('settings',{sites:j.sites,inspectors:j.inspectors,cc:j.cc,photoTo:j.photoTo||''});return j},
   async roundsSummary(){return (await this.call('rounds')).rounds.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt-a.createdAt))},
   rounds(){return this.roundsSummary()},
   async round(id){return (await this.call('round',{id})).round},
@@ -398,8 +398,10 @@ const SAPI={
     return new Blob(parts,{type:f.mime})},
   async putBlob(blob,id,roundId,onPart){const fid=await this.upload(blob,roundId,'위기대응_합본.'+(/mp4/.test(blob.type)?'mp4':'webm'),onPart);IDB.put('blobs',blob,fid).catch(()=>{});return fid},
   delBlob(id){IDB.del('blobs',id).catch(()=>{});return this.call('fileDelete',{id})},
-  async sendMail(o){const j=await this.call('mailSend',{id:o.round.id,name:o.name,data:await b64(o.file),counts:o.counts});
-    const rr=cGet('round:'+o.round.id);if(rr){rr.sentAt=j.sentAt;rr.reviewedAt=rr.reviewedAt||j.sentAt;cSet('round:'+o.round.id,rr)}return {ok:true,to:j.to,cc:j.cc}}
+  async sendMail(o){const j=await this.call('mailSend',{id:o.round.id,name:o.name,data:await b64(o.file),counts:o.counts,withZip:!!o.withZip,marked:o.marked||{}});
+    const rr=cGet('round:'+o.round.id);if(rr){rr.sentAt=j.sentAt;rr.reviewedAt=rr.reviewedAt||j.sentAt;if(j.zip){rr.zipSentAt=j.zip.sentAt;rr.zipSentTo=j.zip.to+(j.zip.link?' (링크)':'')}cSet('round:'+o.round.id,rr)}return {ok:true,to:j.to,cc:j.cc,zip:j.zip,zipErr:j.zipErr}},
+  async sendPhotoZip(o){const j=await this.call('photoMailSend',{id:o.round.id,marked:o.marked||{}});
+    const rr=cGet('round:'+o.round.id);if(rr&&j.zip){rr.zipSentAt=j.zip.sentAt;rr.zipSentTo=j.zip.to+(j.zip.link?' (링크)':'');cSet('round:'+o.round.id,rr)}return j.zip}
 };
 const API=SERVER?SAPI:LAPI;
 
@@ -559,8 +561,10 @@ async function viewSettings(){
     }else{
       body.innerHTML=`<label class="f">모든 발송 메일에 참조로 넣을 주소(본사 담당자, 쉼표로 구분)<input type="text" id="ccAll" value="${esc(st.cc||'')}"></label>
       <div class="muted">${SERVER?'「강평 종료 · 메일 발송」을 누르면 사업장 소장님 메일로 엑셀이 첨부되어 나갑니다. 참조에는 사업장별 참조 메일과 이 주소가 함께 들어갑니다.':'시안 모드에서는 메일 대신 엑셀 파일을 내려받습니다.'}</div>
+      <label class="f">사진 ZIP 받는 사람(쉼표로 구분)<input type="text" id="photoTo" value="${esc(st.photoTo||'')}" placeholder="비워 두면 사진 ZIP 을 보내지 않습니다"></label>
+      <div class="muted">여기 적은 사람에게는 소장님 메일과 따로, 회차 사진 전체(영상 제외)를 분야별 폴더로 묶은 ZIP 과 엑셀을 함께 보냅니다. 빨간 원은 사진에 그려서 넣습니다. ZIP 이 18MB 를 넘으면 첨부 대신 구글 드라이브 링크로 보냅니다.</div>
       <div class="row"><span style="flex:1"></span><button class="btn pri" id="saveMail">저장</button></div>`;
-      $('#saveMail').onclick=async()=>{st.cc=$('#ccAll').value.trim();await API.saveSettings(st);toast('저장했습니다.')};
+      $('#saveMail').onclick=async()=>{st.cc=$('#ccAll').value.trim();st.photoTo=$('#photoTo').value.trim();await API.saveSettings(st);toast('저장했습니다.')};
     }
   };
   await swr({settings:()=>API.settings()},d=>{st=JSON.parse(JSON.stringify(d.settings));draw()},{noRerender:true});
@@ -601,8 +605,9 @@ function renderRound(id,r,st,photos){
       <dl class="kv"><dt>받는 사람</dt><dd>${site.email?`${esc(site.chief||'소장님')} &lt;${esc(site.email)}&gt;`:'<span style="color:var(--bad)">소장님 메일 미등록</span> · <a href="#s">설정에서 등록</a>'}</dd>
       <dt>참조</dt><dd>${esc([site.cc,st.cc].filter(Boolean).join(', ')||'없음')}</dd>
       <dt>첨부</dt><dd>${esc(r.siteName)} 강평자료_${r.date.replaceAll('-','').slice(2)}.xlsx · 미흡 <span class="num">${bad}</span>건 (위기대응 제외)</dd>
-      ${r.sentAt?`<dt>발송</dt><dd>${new Date(r.sentAt).toLocaleString('ko-KR')}</dd>`:''}</dl>
-      <div class="row"><button class="btn" id="xlBtn">엑셀 미리 내려받기</button><button class="btn ${r.sentAt?'':'pri'}" id="endBtn">${r.sentAt?'메일 다시 보내기':'강평 종료 · 메일 발송'}</button></div>
+      ${r.sentAt?`<dt>발송</dt><dd>${new Date(r.sentAt).toLocaleString('ko-KR')}</dd>`:''}
+      <dt>사진 ZIP</dt><dd>${st.photoTo?`${esc(st.photoTo)} · 사진 <span class="num">${photos.filter(p=>p.kind!=='video').length}</span>장(영상 제외)${r.zipSentAt?` · <span style="color:var(--ok)">${new Date(r.zipSentAt).toLocaleString('ko-KR')} 발송</span>`:''}`:'<span class="muted">받는 사람 없음</span> · <a href="#s">설정 › 메일에서 등록</a>'}</dd></dl>
+      <div class="row"><button class="btn" id="xlBtn">엑셀 미리 내려받기</button><button class="btn ${r.sentAt?'':'pri'}" id="endBtn">${r.sentAt?'메일 다시 보내기':'강평 종료 · 메일 발송'}</button>${SERVER&&st.photoTo&&r.sentAt?`<button class="btn" id="zipBtn">사진 ZIP만 보내기</button>`:''}</div>
       <div class="prog" id="xlProg" hidden><i></i></div>
     </section>
     ${PARTS.map(p=>partSection(p,photos,c)).join('')}
@@ -621,6 +626,9 @@ function renderRound(id,r,st,photos){
   $('#editRound').onclick=()=>editRoundBox(r,st);
   $('#xlBtn').onclick=async()=>{const b=await makeExcel(r,photos,'#xlProg');if(b)download(b,xlName(r))};
   $('#endBtn').onclick=()=>endReview(r,site,st,photos);
+  const zb=$('#zipBtn');if(zb)zb.onclick=()=>confirmBox(`${esc(st.photoTo)} 로 사진 ZIP(영상 제외)과 엑셀을 보냅니다.`,'보내기',async()=>{
+    const pr=$('#xlProg');BUSY++;try{const marked=await uploadMarked(r,photos,pr);toast('사진을 묶어 보내는 중… (30초~1분)',60000);const z=await API.sendPhotoZip({round:r,marked});document.querySelectorAll('.toast').forEach(t=>t.remove());toast(`${z.to} 로 사진 ${z.n}장(${z.mb}MB)을 ${z.link?'드라이브 링크로 ':''}보냈습니다.`,5000)}
+    catch(e){document.querySelectorAll('.toast').forEach(t=>t.remove());toast('사진 ZIP 을 보내지 못했습니다: '+e.message,6000)}finally{BUSY--;if(pr)pr.hidden=true}route()});
   if(r.mergedId){const mv=$('#mergedView');mv.innerHTML='<div class="muted">합본 영상 불러오는 중…</div>';
     BIGPROG.set(r.mergedId,(d,n)=>{const v=$('#mergedView');if(v&&!v.querySelector('video'))v.innerHTML=`<div class="muted">합본 영상 불러오는 중 ${d}/${n}</div>`});
     blobUrl(r.mergedId).then(u=>{const v=$('#mergedView');if(v&&u)v.innerHTML=`<video src="${u}" controls playsinline style="max-width:100%;max-height:360px;border-radius:8px;background:#000"></video>`}).catch(e=>{const v=$('#mergedView');if(v)v.innerHTML='<div class="muted">합본 영상을 불러오지 못했습니다: '+esc(e.message)+'</div>'});
@@ -676,14 +684,31 @@ async function movePhoto(p,photos,dir){
   changed.forEach(x=>patchList('photos:'+x.roundId,{id:x.id,order:x.order}));
   BUSY++;Promise.all(changed.map(x=>API.savePhoto({...x}))).catch(e=>toast('순서를 저장하지 못했습니다: '+e.message)).finally(()=>{BUSY--});
 }
+/* 사진 ZIP 용: 원이 있는 사진만 원을 그려 임시로 올림 → {사진id: 파일id} (서버가 ZIP 에 넣고 휴지통으로) */
+async function markedPhoto(p){const bm=await loadBitmap(await API.getBlob(p.fileId));const w=bm.width,h=bm.height;
+  const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.drawImage(bm,0,0,w,h);
+  g.strokeStyle='#FF0000';g.lineWidth=Math.max(4,w*.008);
+  for(const e of p.circles||[]){g.beginPath();g.ellipse(e.cx*w,e.cy*h,Math.max(1,e.rx*w),Math.max(1,e.ry*h),0,0,Math.PI*2);g.stroke()}
+  return canvasBlob(c,'image/jpeg',.86)}
+async function uploadMarked(r,photos,pr){
+  const list=photos.filter(p=>p.kind!=='video'&&p.fileId&&(p.circles||[]).length);const out={};if(!list.length)return out;
+  if(pr){pr.hidden=false;pr.firstChild.style.width='0'}let next=0,done=0;
+  await Promise.all(Array.from({length:Math.min(6,list.length)},async()=>{while(next<list.length){const p=list[next++];
+    try{const blob=await markedPhoto(p);const j=await API.call('fileAdd',{roundId:r.id,name:'zip_'+p.id,mime:'image/jpeg',data:await b64(blob)});if(j.fileId)out[p.id]=j.fileId}catch(e){console.warn('원 표시 사진',p.id,e)}
+    done++;if(pr)pr.firstChild.style.width=(done/list.length*100)+'%'}}));
+  return out}
 function xlName(r){return `${r.siteName} 강평자료_${r.date.replaceAll('-','').slice(2)}.xlsx`}
 async function endReview(r,site,st,photos){
-  confirmBox(`강평을 마치고 ${site.email?esc(site.email)+' 로 ':''}사업장 전달 엑셀을 보냅니다.`,'강평 종료',async()=>{
+  const withZip=SERVER&&!!st.photoTo&&photos.some(p=>p.kind!=='video');
+  confirmBox(`강평을 마치고 ${site.email?esc(site.email)+' 로 ':''}사업장 전달 엑셀을 보냅니다.${withZip?`<div class="muted" style="margin-top:8px">사진 ZIP(영상 제외)은 ${esc(st.photoTo)} 로 따로 보냅니다.</div>`:''}`,'강평 종료',async()=>{
     const b=await makeExcel(r,photos,'#xlProg');if(!b)return;
     const counts={};for(const p of PARTS)counts[p.k]=photos.filter(x=>x.part===p.k&&x.grade==='bad'&&x.kind!=='video').length;
-    let res;try{res=await API.sendMail({round:r,site,cc:[site.cc,st.cc].filter(Boolean).join(','),file:b,name:xlName(r),counts})}catch(e){toast('메일을 보내지 못했습니다: '+e.message,5000);return}
+    let marked={};if(withZip){try{marked=await uploadMarked(r,photos,$('#xlProg'))}catch(e){console.warn(e);marked={}}}
+    if(withZip)toast('메일과 사진 ZIP 을 보내는 중… (30초~1분)',60000);
+    let res;try{res=await API.sendMail({round:r,site,cc:[site.cc,st.cc].filter(Boolean).join(','),file:b,name:xlName(r),counts,withZip,marked})}catch(e){document.querySelectorAll('.toast').forEach(t=>t.remove());toast('메일을 보내지 못했습니다: '+e.message,5000);return}
+    document.querySelectorAll('.toast').forEach(t=>t.remove());
     r.reviewedAt=r.reviewedAt||Date.now();
-    if(res.ok&&!res.local){toast(`${res.to} 로 메일을 보냈습니다.`,4000)}
+    if(res.ok&&!res.local){toast(`${res.to} 로 메일을 보냈습니다.`+(res.zip?` 사진 ZIP ${res.zip.n}장(${res.zip.mb}MB)은 ${res.zip.to} 로 보냈습니다.`:'')+(res.zipErr?` 사진 ZIP 은 보내지 못했습니다(${res.zipErr}) — 「사진 ZIP만 보내기」로 다시 보내 주세요.`:''),res.zipErr?8000:5000)}
     else{await API.saveRound(r);download(b,xlName(r));toast('시안에서는 메일 대신 파일로 내려받습니다. 서버 연결 후 자동 발송됩니다.',4200)}
     route()});
 }
