@@ -562,7 +562,7 @@ async function viewSettings(){
       body.innerHTML=`<label class="f">모든 발송 메일에 참조로 넣을 주소(본사 담당자, 쉼표로 구분)<input type="text" id="ccAll" value="${esc(st.cc||'')}"></label>
       <div class="muted">${SERVER?'「강평 종료 · 메일 발송」을 누르면 사업장 소장님 메일로 엑셀이 첨부되어 나갑니다. 참조에는 사업장별 참조 메일과 이 주소가 함께 들어갑니다.':'시안 모드에서는 메일 대신 엑셀 파일을 내려받습니다.'}</div>
       <label class="f">사진 ZIP 받는 사람(쉼표로 구분)<input type="text" id="photoTo" value="${esc(st.photoTo||'')}" placeholder="비워 두면 사진 ZIP 을 보내지 않습니다"></label>
-      <div class="muted">여기 적은 사람에게는 소장님 메일과 따로, 회차 사진 전체(영상 제외)를 분야별 폴더로 묶은 ZIP 과 엑셀을 함께 보냅니다. 빨간 원은 사진에 그려서 넣습니다. ZIP 이 18MB 를 넘으면 첨부 대신 구글 드라이브 링크로 보냅니다.</div>
+      <div class="muted">여기 적은 사람에게는 소장님 메일과 따로, 회차 사진 전체(영상 제외)를 분야별 폴더로 묶은 ZIP 과 엑셀을 함께 보냅니다. 사진은 빨간 원 표시 없이 원본 그대로 넣습니다. ZIP 이 18MB 를 넘으면 첨부 대신 구글 드라이브 링크로 보냅니다.</div>
       <div class="row"><span style="flex:1"></span><button class="btn pri" id="saveMail">저장</button></div>`;
       $('#saveMail').onclick=async()=>{st.cc=$('#ccAll').value.trim();st.photoTo=$('#photoTo').value.trim();await API.saveSettings(st);toast('저장했습니다.')};
     }
@@ -627,7 +627,7 @@ function renderRound(id,r,st,photos){
   $('#xlBtn').onclick=async()=>{const b=await makeExcel(r,photos,'#xlProg');if(b)download(b,xlName(r))};
   $('#endBtn').onclick=()=>endReview(r,site,st,photos);
   const zb=$('#zipBtn');if(zb)zb.onclick=()=>confirmBox(`${esc(st.photoTo)} 로 사진 ZIP(영상 제외)과 엑셀을 보냅니다.`,'보내기',async()=>{
-    const pr=$('#xlProg');BUSY++;try{const marked=await uploadMarked(r,photos,pr);toast('사진을 묶어 보내는 중… (30초~1분)',60000);const z=await API.sendPhotoZip({round:r,marked});document.querySelectorAll('.toast').forEach(t=>t.remove());toast(`${z.to} 로 사진 ${z.n}장(${z.mb}MB)을 ${z.link?'드라이브 링크로 ':''}보냈습니다.`,5000)}
+    const pr=$('#xlProg');BUSY++;try{const marked={};toast('사진을 묶어 보내는 중… (30초~1분)',60000);const z=await API.sendPhotoZip({round:r,marked});document.querySelectorAll('.toast').forEach(t=>t.remove());toast(`${z.to} 로 사진 ${z.n}장(${z.mb}MB)을 ${z.link?'드라이브 링크로 ':''}보냈습니다.`,5000)}
     catch(e){document.querySelectorAll('.toast').forEach(t=>t.remove());toast('사진 ZIP 을 보내지 못했습니다: '+e.message,6000)}finally{BUSY--;if(pr)pr.hidden=true}route()});
   if(r.mergedId){const mv=$('#mergedView');mv.innerHTML='<div class="muted">합본 영상 불러오는 중…</div>';
     BIGPROG.set(r.mergedId,(d,n)=>{const v=$('#mergedView');if(v&&!v.querySelector('video'))v.innerHTML=`<div class="muted">합본 영상 불러오는 중 ${d}/${n}</div>`});
@@ -703,7 +703,7 @@ async function endReview(r,site,st,photos){
   confirmBox(`강평을 마치고 ${site.email?esc(site.email)+' 로 ':''}사업장 전달 엑셀을 보냅니다.${withZip?`<div class="muted" style="margin-top:8px">사진 ZIP(영상 제외)은 ${esc(st.photoTo)} 로 따로 보냅니다.</div>`:''}`,'강평 종료',async()=>{
     const b=await makeExcel(r,photos,'#xlProg');if(!b)return;
     const counts={};for(const p of PARTS)counts[p.k]=photos.filter(x=>x.part===p.k&&x.grade==='bad'&&x.kind!=='video').length;
-    let marked={};if(withZip){try{marked=await uploadMarked(r,photos,$('#xlProg'))}catch(e){console.warn(e);marked={}}}
+    let marked={}; // 사진 ZIP 은 빨간 원 없이 원본으로
     if(withZip)toast('메일과 사진 ZIP 을 보내는 중… (30초~1분)',60000);
     let res;try{res=await API.sendMail({round:r,site,cc:[site.cc,st.cc].filter(Boolean).join(','),file:b,name:xlName(r),counts,withZip,marked})}catch(e){document.querySelectorAll('.toast').forEach(t=>t.remove());toast('메일을 보내지 못했습니다: '+e.message,5000);return}
     document.querySelectorAll('.toast').forEach(t=>t.remove());
