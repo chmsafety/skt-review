@@ -77,6 +77,8 @@ textarea{resize:vertical;min-height:64px;line-height:1.45}
 .p-sent{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
 .g-good{background:var(--good);color:#fff}
 .g-bad{background:var(--bad);color:#fff}
+.g-ref{background:#546E7A;color:#fff}
+.seg button[aria-pressed="true"].ref{background:#546E7A;color:#fff}
 .g-crisis{background:var(--crisis);color:#fff}
 .num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 /* 회차 카드 */
@@ -146,6 +148,7 @@ table.t input{min-height:34px;padding:5px 8px}
 .editor{position:fixed;inset:0;z-index:60;background:#0B0F13;color:#E8EDF2;display:flex;flex-direction:column}
 .editor .bar{display:flex;gap:8px;align-items:center;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px));flex-wrap:wrap}
 .editor .bar .btn{background:#1A232C;border-color:#2C3945;color:#E8EDF2}
+.editor .bar .seg{border-color:#2C3945}.editor .bar .seg button{background:#1A232C;color:#E8EDF2}.editor .bar .seg button[aria-pressed="true"]{background:#E24848;color:#fff}
 .editor .bar .btn.pri{background:#E24848;border-color:#E24848;color:#fff}
 .editor .stage{flex:1;display:grid;place-items:center;min-height:0;padding:8px;touch-action:none}
 .editor .cv{position:relative;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -238,7 +241,7 @@ const PARTS=[
   {k:'env',n:'환경',sheet:1},{k:'mech',n:'기계설비',sheet:2},{k:'fire',n:'소방',sheet:3},
   {k:'safe',n:'안전',sheet:4},{k:'crisis',n:'위기대응',sheet:0}];
 const PART=Object.fromEntries(PARTS.map(p=>[p.k,p]));
-const GRADE={good:'우수',bad:'미흡',crisis:'위기대응'};
+const GRADE={good:'우수',bad:'미흡',ref:'참고',crisis:'위기대응'};
 const XL_W=2314575, XL_H=1657350, XL_R=XL_W/XL_H;   // 양식 현장사진 칸 6.43 × 4.60cm
 const VIDEO_TOTAL=20;                                // 위기대응 합본 길이(초)
 const SEED_SITES=['T-타워','둔산','보라매','부사','부암','분당','송정','신천','인천','장안','제주','태평','판교']
@@ -351,7 +354,7 @@ const SAPI={
   async roundByCodeFull(code){this.code=code;const j=await this.call('roundByCode',{code});return j.round?{round:j.round,inspectors:j.inspectors||[]}:null},
   async roundByCode(code){const x=await this.roundByCodeFull(code);return x&&x.round},
   async saveRound(r){const j=await this.call('roundSave',{round:r});Object.assign(r,j.round);const o={...r};delete o._c;cSet('round:'+r.id,o);
-    const l=cGet('rounds');if(Array.isArray(l)){const i=l.findIndex(x=>x.id===r.id);if(i>=0)l[i]={...l[i],...o};else l.unshift({...o,_c:{_n:0,...Object.fromEntries(PARTS.map(p=>[p.k,{good:0,bad:0,crisis:0,video:0}]))}});cSet('rounds',l)}
+    const l=cGet('rounds');if(Array.isArray(l)){const i=l.findIndex(x=>x.id===r.id);if(i>=0)l[i]={...l[i],...o};else l.unshift({...o,_c:{_n:0,...Object.fromEntries(PARTS.map(p=>[p.k,{good:0,bad:0,ref:0,crisis:0,video:0}]))}});cSet('rounds',l)}
     if(!cGet('photos:'+r.id))cSet('photos:'+r.id,[]);return r},
   async deleteRound(id){await this.call('roundDelete',{id});const l=cGet('rounds');if(Array.isArray(l))cSet('rounds',l.filter(x=>x.id!==id));cDel('round:'+id);cDel('photos:'+id)},
   async photos(id){return (await this.call('photos',{id})).photos},
@@ -416,7 +419,7 @@ function canvasBlob(c,type='image/jpeg',q=.85){return new Promise(ok=>c.toBlob(o
 async function rotateBlob(blob,rot,q=.9){const bm=await loadBitmap(blob);const w=bm.width,h=bm.height;const c=document.createElement('canvas');
   const sw=rot%180?h:w,sh=rot%180?w:h;c.width=sw;c.height=sh;const g=c.getContext('2d');g.translate(sw/2,sh/2);g.rotate(rot*Math.PI/180);g.drawImage(bm,-w/2,-h/2);
   return {blob:await canvasBlob(c,'image/jpeg',q),w:sw,h:sh}}
-function rotateCircles(cs,rot){return (cs||[]).map(c=>{let {cx,cy,rx,ry}=c;for(let k=0;k<(rot/90)%4;k++){[cx,cy]=[1-cy,cx];[rx,ry]=[ry,rx]}return {cx:+cx.toFixed(4),cy:+cy.toFixed(4),rx:+rx.toFixed(4),ry:+ry.toFixed(4)}})}
+function rotateCircles(cs,rot){return (cs||[]).map(c=>{let {cx,cy,rx,ry}=c;for(let k=0;k<(rot/90)%4;k++){[cx,cy]=[1-cy,cx];[rx,ry]=[ry,rx]}return {cx:+cx.toFixed(4),cy:+cy.toFixed(4),rx:+rx.toFixed(4),ry:+ry.toFixed(4),...(c.s==='r'?{s:'r'}:{})}})}
 async function shrink(blob,max,q=.85){const bm=await loadBitmap(blob);const w0=bm.width,h0=bm.height;const k=Math.min(1,max/Math.max(w0,h0));
   const c=document.createElement('canvas');c.width=Math.round(w0*k);c.height=Math.round(h0*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
   return {blob:await canvasBlob(c,'image/jpeg',q),w:c.width,h:c.height}}
@@ -428,7 +431,9 @@ async function videoInfo(file){return new Promise(ok=>{const v=document.createEl
   v.onloadeddata=()=>{try{v.currentTime=Math.min(.3,(v.duration||1)/2)}catch(e){fin()}};v.onseeked=fin;v.onerror=()=>fin();setTimeout(fin,6000)})}
 
 /* 원: cx,cy(가로·세로 비율), rx(가로폭 비율), ry(세로높이 비율) */
-function ellipses(circles,w,h,sw){return (circles||[]).map(c=>`<ellipse cx="${c.cx*w}" cy="${c.cy*h}" rx="${c.rx*w}" ry="${c.ry*h}" fill="none" stroke="#FF2A2A" stroke-width="${sw}"/>`).join('')}
+/* 표시 모양: s 가 'r' 이면 네모(cx,cy 중심 · rx,ry 반너비·반높이), 없으면 원 */
+function ellipses(circles,w,h,sw){return (circles||[]).map(c=>c.s==='r'?`<rect x="${(c.cx-c.rx)*w}" y="${(c.cy-c.ry)*h}" width="${c.rx*2*w}" height="${c.ry*2*h}" rx="${sw*1.5}" fill="none" stroke="#FF2A2A" stroke-width="${sw}"/>`:`<ellipse cx="${c.cx*w}" cy="${c.cy*h}" rx="${c.rx*w}" ry="${c.ry*h}" fill="none" stroke="#FF2A2A" stroke-width="${sw}"/>`).join('')}
+function markPath(g,e,x,y,rx,ry){g.beginPath();if(e.s==='r')g.rect(x-rx,y-ry,rx*2,ry*2);else g.ellipse(x,y,Math.max(1,rx),Math.max(1,ry),0,0,Math.PI*2);g.stroke()}
 function frameHTML(p,url,boxRatio=4/3,extra=''){
   const w=p.tw||p.w||4,h=p.th||p.h||3;const r=w/h;
   const size=r>=boxRatio?'width:100%':'height:100%';
@@ -480,8 +485,8 @@ function statusOf(r,photos){
   if(photos&&photos.length)return {t:'사진 등록 중',c:'p-up'};
   return {t:'준비',c:'p-wait'};
 }
-function countBy(photos){const o={};for(const p of PARTS)o[p.k]={good:0,bad:0,crisis:0,video:0};
-  for(const x of photos){const c=o[x.part];if(!c)continue;if(x.kind==='video')c.video++;else c[x.grade]++}return o}
+function countBy(photos){const o={};for(const p of PARTS)o[p.k]={good:0,bad:0,ref:0,crisis:0,video:0};
+  for(const x of photos){const c=o[x.part];if(!c)continue;if(x.kind==='video')c.video++;else if(c[x.grade]!==undefined)c[x.grade]++}return o}
 function ordered(list){return [...list].sort((a,b)=>(a.order??0)-(b.order??0)||(a.createdAt-b.createdAt))}
 function upLink(r){return location.href.split('#')[0]+'#u/'+r.code}
 
@@ -510,7 +515,7 @@ function renderHome(rounds,st){
     </form>
     ${rounds.length?`<div class="rounds">${rounds.map(r=>{const c=r._c;const s=statusOf(r,{length:c._n});
       return `<a class="rc" href="#r/${r.id}"><div class="t"><div><div class="nm">${esc(r.siteName)}</div><div class="muted">${fmtD(r.date)} · ${r.year} ${r.half}</div></div><span class="pill ${s.c}">${s.t}</span></div>
-      <div class="bars">${PARTS.map(p=>{const x=c[p.k];const n=p.k==='crisis'?x.crisis+x.video:x.good+x.bad;return `<div>${p.n}<b>${n}</b></div>`}).join('')}</div></a>`}).join('')}</div>`
+      <div class="bars">${PARTS.map(p=>{const x=c[p.k];const n=p.k==='crisis'?x.crisis+x.video:x.good+x.bad+(x.ref||0);return `<div>${p.n}<b>${n}</b></div>`}).join('')}</div></a>`}).join('')}</div>`
     :`<div class="empty">아직 회차가 없습니다. <b>새 점검 회차</b>를 눌러 첫 점검을 등록하세요.</div>`}
     <div class="muted">${VERSION}</div>
   </div>`;
@@ -665,8 +670,8 @@ function partSection(p,photos,c){
   const list=photos.filter(x=>x.part===p.k);
   const x=c[p.k];
   const groups=p.k==='crisis'?[['crisis','사진',list.filter(i=>i.kind!=='video')],['video','영상',list.filter(i=>i.kind==='video')]]
-    :[['good','우수',list.filter(i=>i.grade==='good')],['bad','미흡',list.filter(i=>i.grade==='bad')]];
-  const sum=p.k==='crisis'?`사진 <b class="num">${x.crisis}</b> · 영상 <b class="num">${x.video}</b>`:`<span style="color:var(--good)">우수 <b class="num">${x.good}</b></span> · <span style="color:var(--bad)">미흡 <b class="num">${x.bad}</b></span>`;
+    :[['good','우수',list.filter(i=>i.grade==='good')],['bad','미흡',list.filter(i=>i.grade==='bad')],['ref','참고',list.filter(i=>i.grade==='ref')]];
+  const sum=p.k==='crisis'?`사진 <b class="num">${x.crisis}</b> · 영상 <b class="num">${x.video}</b>`:`<span style="color:var(--good)">우수 <b class="num">${x.good}</b></span> · <span style="color:var(--bad)">미흡 <b class="num">${x.bad}</b></span>${x.ref?` · 참고 <b class="num">${x.ref}</b>`:''}`;
   return `<section class="part panel"><div class="part-h"><span class="dot" style="${p.k==='crisis'?'background:var(--crisis)':''}"></span><h2>${PARTS.indexOf(p)+1}. ${p.n}</h2><span class="muted">${sum}</span>${p.sheet?`<span class="muted">· 엑셀 「${p.sheet}. ${p.n==='기계설비'?'기계':p.n}」 시트</span>`:'<span class="muted">· 엑셀 제외</span>'}<span style="flex:1"></span><button class="btn sm" data-add="${p.k}">＋ 사진 추가</button></div>
   ${list.length?groups.filter(g=>g[2].length).map(([g,label,items])=>`<div class="muted" style="font-weight:600">${label} ${items.length}</div><div class="grid">${ordered(items).map((it,i,arr)=>photoCard(it,i,arr.length)).join('')}</div>`).join(''):'<div class="muted">아직 올라온 사진이 없습니다.</div>'}</section>`;
 }
@@ -694,7 +699,7 @@ async function movePhoto(p,photos,dir){
 async function markedPhoto(p){const bm=await loadBitmap(await API.getBlob(p.fileId));const w=bm.width,h=bm.height;
   const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.drawImage(bm,0,0,w,h);
   g.strokeStyle='#FF0000';g.lineWidth=Math.max(4,w*.008);
-  for(const e of p.circles||[]){g.beginPath();g.ellipse(e.cx*w,e.cy*h,Math.max(1,e.rx*w),Math.max(1,e.ry*h),0,0,Math.PI*2);g.stroke()}
+  for(const e of p.circles||[])markPath(g,e,e.cx*w,e.cy*h,e.rx*w,e.ry*h);
   return canvasBlob(c,'image/jpeg',.86)}
 async function uploadMarked(r,photos,pr){
   const list=photos.filter(p=>p.kind!=='video'&&p.fileId&&(p.circles||[]).length);const out={};if(!list.length)return out;
@@ -740,21 +745,21 @@ async function editPhotoBox(p,after,admin){
   layer.innerHTML=`<div class="modal"><form class="sheet" id="epF"><h2>사진 편집</h2>
   <div class="box" id="epBox" title="사진을 누르면 원 표시 화면이 열립니다" style="cursor:pointer">${frameHTML(p,u)}</div>
   ${admin?`<label class="f">분야<select id="epPt">${PARTS.map(x=>`<option value="${x.k}" ${x.k===p.part?'selected':''}>${x.n}</option>`).join('')}</select></label>`:''}
-  <div class="seg" role="group" id="epSeg" ${p.part==='crisis'?'hidden':''}><button type="button" class="good" data-g="good" aria-pressed="${p.grade==='good'}">우수</button><button type="button" class="bad" data-g="bad" aria-pressed="${p.grade==='bad'}">미흡</button></div>
+  <div class="seg" role="group" id="epSeg" ${p.part==='crisis'?'hidden':''}><button type="button" class="good" data-g="good" aria-pressed="${p.grade==='good'}">우수</button><button type="button" class="bad" data-g="bad" aria-pressed="${p.grade==='bad'}">미흡</button><button type="button" class="ref" data-g="ref" aria-pressed="${p.grade==='ref'}">참고</button></div>
   <label class="f">장소<input type="text" id="epPl" value="${esc(p.place||'')}" maxlength="60"></label>
   <label class="f">간단 설명<textarea id="epDs" maxlength="200">${esc(p.desc||'')}</textarea></label>
-  <div class="row"><button type="button" class="btn" id="epCi">원 표시 (${(p.circles||[]).length})</button>${p.kind==='video'?'':`<button type="button" class="btn" id="epRl" title="왼쪽으로 90° 회전">↺ 회전</button><button type="button" class="btn" id="epRr" title="오른쪽으로 90° 회전">↻ 회전</button>`}<span style="flex:1"></span><button type="button" class="btn" id="epNo">취소</button><button class="btn pri">저장</button></div></form></div>`;
+  <div class="row"><button type="button" class="btn" id="epCi">원·네모 표시 (${(p.circles||[]).length})</button>${p.kind==='video'?'':`<button type="button" class="btn" id="epRl" title="왼쪽으로 90° 회전">↺ 회전</button><button type="button" class="btn" id="epRr" title="오른쪽으로 90° 회전">↻ 회전</button>`}<span style="flex:1"></span><button type="button" class="btn" id="epNo">취소</button><button class="btn pri">저장</button></div></form></div>`;
   let g=p.grade,circles=[...(p.circles||[])],part=p.part,rot=0,q={w:p.w,h:p.h,tw:p.tw,th:p.th};
   const previewRot=async d=>{rot=(rot+d+360)%360;circles=rotateCircles(circles,(d+360)%360);
     const src=await API.getBlob(p.fileId).catch(()=>null);if(!src)return toast('사진을 불러오지 못했습니다.');
     const r=await rotateBlob(src,rot,.85);u=URL.createObjectURL(r.blob);const sw=rot%180?p.h:p.w,sh=rot%180?p.w:p.h;q={w:sw,h:sh,tw:rot%180?p.th:p.tw,th:rot%180?p.tw:p.th};
-    const box=$('#epBox');if(box)box.innerHTML=frameHTML({...p,...q,circles},u);const ci=$('#epCi');if(ci)ci.textContent=`원 표시 (${circles.length})`};
+    const box=$('#epBox');if(box)box.innerHTML=frameHTML({...p,...q,circles},u);const ci=$('#epCi');if(ci)ci.textContent=`원·네모 표시 (${circles.length})`};
   if($('#epRl'))$('#epRl').onclick=()=>previewRot(270);if($('#epRr'))$('#epRr').onclick=()=>previewRot(90);
   const pt=$('#epPt');if(pt)pt.onchange=()=>{part=pt.value;$('#epSeg').hidden=part==='crisis';if(part==='crisis')g='crisis';else if(g==='crisis'){g='bad';$$('#epF [data-g]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.g==='bad'))}};
   $$('#epF [data-g]').forEach(b=>b.onclick=()=>{g=b.dataset.g;$$('#epF [data-g]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
   $('#epNo').onclick=()=>layer.innerHTML='';
   $('#epBox').onclick=()=>$('#epCi').click();
-  $('#epCi').onclick=()=>openCircleEditor(u,q.w,q.h,circles,res=>{circles=res;$('#epBox').innerHTML=frameHTML({...p,...q,circles},u);$('#epCi').textContent=`원 표시 (${res.length})`});
+  $('#epCi').onclick=()=>openCircleEditor(u,q.w,q.h,circles,res=>{circles=res;$('#epBox').innerHTML=frameHTML({...p,...q,circles},u);$('#epCi').textContent=`원·네모 표시 (${res.length})`});
   $('#epF').onsubmit=async e=>{e.preventDefault();p.part=part;p.grade=part==='crisis'?'crisis':(g==='crisis'?'bad':g);p.place=$('#epPl').value.trim();p.desc=$('#epDs').value.trim();p.circles=circles;
     if(rot){ // 회전: 사진·축소본을 새로 만들어 다시 올리고 예전 파일은 정리
       const btn=$('#epF .btn.pri');btn.disabled=true;btn.textContent='회전 저장 중…';
@@ -771,28 +776,31 @@ async function editPhotoBox(p,after,admin){
 
 /* ================= 빨간 원 편집기 ================= */
 function openCircleEditor(url,w,h,circles,done){
-  let cs=circles.map(c=>({...c}));let sel=cs.length?cs.length-1:-1;
+  let cs=circles.map(c=>({...c}));let sel=-1;let shape=cs.length&&cs[cs.length-1].s==='r'?'r':'e';
   const ed=document.createElement('div');ed.className='editor';
-  ed.innerHTML=`<div class="bar"><button class="btn" id="ceDel">선택한 원 삭제</button><button class="btn" id="ceClr">모두 지우기</button><span style="flex:1"></span><button class="btn" id="ceNo">취소</button><button class="btn pri" id="ceOk">완료</button></div>
+  ed.innerHTML=`<div class="bar"><div class="seg" role="group" id="ceShape"><button type="button" data-s="e" aria-pressed="${shape==='e'}">○ 원</button><button type="button" data-s="r" aria-pressed="${shape==='r'}">□ 네모</button></div><button class="btn" id="ceDel">선택한 표시 삭제</button><button class="btn" id="ceClr">모두 지우기</button><span style="flex:1"></span><button class="btn" id="ceNo">취소</button><button class="btn pri" id="ceOk">완료</button></div>
   <div class="stage" id="ceStage"><div class="cv" id="ceCv"><img src="${url}" alt=""><svg id="ceSvg"></svg></div></div>
-  <div class="hint">${matchMedia('(pointer:coarse)').matches?'빈 곳을 누르면 원이 생깁니다 · 원을 끌어 옮기고, 흰 점을 끌어 크기를 바꾸세요':'빈 곳을 클릭하면 원이 생깁니다 · 원을 끌어 옮기기 · 흰 점을 끌어 크기(<kbd>Shift</kbd> 누르면 정원) · 원 위에서 휠로 크기 · <kbd>Delete</kbd> 삭제 · <kbd>Enter</kbd> 완료 · <kbd>Esc</kbd> 취소'}</div>`;
+  <div class="hint">${matchMedia('(pointer:coarse)').matches?'빈 곳을 누르면 표시가 생깁니다 · 표시를 끌어 옮기고, 흰 점을 끌어 크기를 바꾸세요 · 위의 ○ □ 로 모양 선택':'빈 곳을 클릭하면 표시가 생깁니다 · 끌어 옮기기 · 흰 점을 끌어 크기(<kbd>Shift</kbd> 누르면 정원·정사각) · 표시 위에서 휠로 크기 · 위의 ○ □ 로 모양(선택한 표시도 바뀜) · <kbd>Delete</kbd> 삭제 · <kbd>Enter</kbd> 완료 · <kbd>Esc</kbd> 취소'}</div>`;
   document.body.appendChild(ed);document.body.style.overflow='hidden';
   const stage=$('#ceStage',ed),cv=$('#ceCv',ed),svg=$('#ceSvg',ed);let W=0,H=0;
   const fit=()=>{const sw=stage.clientWidth-16,sh=stage.clientHeight-16;const k=Math.min(sw/w,sh/h);W=Math.round(w*k);H=Math.round(h*k);cv.style.width=W+'px';cv.style.height=H+'px';svg.setAttribute('viewBox',`0 0 ${W} ${H}`);draw()};
   const K=.7071;
-  const draw=()=>{svg.innerHTML=cs.map((c,i)=>{const x=c.cx*W,y=c.cy*H,rx=c.rx*W,ry=c.ry*H;const on=i===sel;
-    return `<ellipse data-i="${i}" cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="rgba(255,42,42,.001)" stroke="#FF2A2A" stroke-width="${Math.max(3,W*.009)}" ${on?'stroke-dasharray="0"':''}/>
-      ${on?`<circle data-h="${i}" cx="${x+rx*K}" cy="${y+ry*K}" r="13" fill="#fff" stroke="#FF2A2A" stroke-width="3"/>`:''}`}).join('')};
+  const kf=c=>c.s==='r'?1:K;
+  const draw=()=>{svg.innerHTML=cs.map((c,i)=>{const x=c.cx*W,y=c.cy*H,rx=c.rx*W,ry=c.ry*H;const on=i===sel;const sw=Math.max(3,W*.009);
+    return (c.s==='r'?`<rect data-i="${i}" x="${x-rx}" y="${y-ry}" width="${rx*2}" height="${ry*2}" rx="${sw*1.5}" fill="rgba(255,42,42,.001)" stroke="#FF2A2A" stroke-width="${sw}"/>`
+      :`<ellipse data-i="${i}" cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="rgba(255,42,42,.001)" stroke="#FF2A2A" stroke-width="${sw}"/>`)+
+      `${on?`<circle data-h="${i}" cx="${x+rx*kf(c)}" cy="${y+ry*kf(c)}" r="13" fill="#fff" stroke="#FF2A2A" stroke-width="3"/>`:''}`}).join('')};
+  $$('#ceShape button',ed).forEach(b=>b.onclick=()=>{shape=b.dataset.s;$$('#ceShape button',ed).forEach(x=>x.setAttribute('aria-pressed',x===b));if(sel>=0&&cs[sel]){if(shape==='r')cs[sel].s='r';else delete cs[sel].s;draw()}});
   let drag=null;
   const pt=e=>{const b=cv.getBoundingClientRect();return {x:Math.min(Math.max(e.clientX-b.left,0),W),y:Math.min(Math.max(e.clientY-b.top,0),H)}};
   cv.addEventListener('pointerdown',e=>{e.preventDefault();const q=pt(e);const t=e.target;
     if(t.dataset&&t.dataset.h!==undefined){sel=+t.dataset.h;drag={m:'r'}}
     else if(t.dataset&&t.dataset.i!==undefined){sel=+t.dataset.i;const c=cs[sel];drag={m:'m',dx:q.x-c.cx*W,dy:q.y-c.cy*H}}
-    else{const r=Math.min(W,H)*.14;cs.push({cx:q.x/W,cy:q.y/H,rx:r/W,ry:r/H});sel=cs.length-1;drag={m:'r'}}
+    else{const r=Math.min(W,H)*.14;cs.push({cx:q.x/W,cy:q.y/H,rx:r/W,ry:r/H,...(shape==='r'?{s:'r'}:{})});sel=cs.length-1;drag={m:'r'}}
     cv.setPointerCapture(e.pointerId);draw()});
   cv.addEventListener('pointermove',e=>{if(!drag||sel<0)return;const q=pt(e);const c=cs[sel];
     if(drag.m==='m'){c.cx=(q.x-drag.dx)/W;c.cy=(q.y-drag.dy)/H}
-    else{let rx=Math.max(14,Math.abs(q.x-c.cx*W)/K),ry=Math.max(14,Math.abs(q.y-c.cy*H)/K);if(e.shiftKey){rx=ry=Math.max(rx,ry)}c.rx=rx/W;c.ry=ry/H}draw()});
+    else{const kk=kf(c);let rx=Math.max(14,Math.abs(q.x-c.cx*W)/kk),ry=Math.max(14,Math.abs(q.y-c.cy*H)/kk);if(e.shiftKey){rx=ry=Math.max(rx,ry)}c.rx=rx/W;c.ry=ry/H}draw()});
   cv.addEventListener('wheel',e=>{const t=e.target;const i=t.dataset&&t.dataset.i!==undefined?+t.dataset.i:sel;if(i<0||!cs[i])return;e.preventDefault();sel=i;const k=e.deltaY<0?1.08:1/1.08;const c=cs[i];
     c.rx=Math.min(1,Math.max(14/W,c.rx*k));c.ry=Math.min(1,Math.max(14/H,c.ry*k));draw()},{passive:false});
   const key=e=>{if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();$('#ceDel',ed).click()}else if(e.key==='Escape'){e.preventDefault();close()}else if(e.key==='Enter'){e.preventDefault();$('#ceOk',ed).click()}};
@@ -802,7 +810,7 @@ function openCircleEditor(url,w,h,circles,done){
   $('#ceDel',ed).onclick=()=>{if(sel>=0){cs.splice(sel,1);sel=cs.length-1;draw()}};
   $('#ceClr',ed).onclick=()=>{cs=[];sel=-1;draw()};
   $('#ceNo',ed).onclick=close;
-  $('#ceOk',ed).onclick=()=>{close();done(cs.map(c=>({cx:+c.cx.toFixed(4),cy:+c.cy.toFixed(4),rx:+c.rx.toFixed(4),ry:+c.ry.toFixed(4)})))};
+  $('#ceOk',ed).onclick=()=>{close();done(cs.map(c=>({cx:+c.cx.toFixed(4),cy:+c.cy.toFixed(4),rx:+c.rx.toFixed(4),ry:+c.ry.toFixed(4),...(c.s==='r'?{s:'r'}:{})})))};
   addEventListener('resize',fit);$('img',ed).complete?fit():$('img',ed).onload=fit;requestAnimationFrame(fit);
 }
 
@@ -902,14 +910,14 @@ function drawDrafts(r,who){
     <div class="stack" style="gap:6px"><div class="box" ${d.kind==='video'?'':`data-ci="${i}" style="cursor:pointer" title="눌러서 원 표시"`}>${frameHTML({...d,kind:d.kind},d.url,4/3,d.kind==='video'?`<span class="vtag">${(d.dur||0).toFixed(1)}s</span>`:'')}</div>
       <label class="row muted" style="gap:6px"><input type="checkbox" class="chk" data-sel="${i}" ${d.sel?'checked':''}>선택</label>${SERVER?`<span id="st_${d.key}" class="uptag"></span>`:''}</div>
     <div class="fields">
-      ${isC?`<span class="pill g-crisis" style="align-self:flex-start">${d.kind==='video'?'위기대응 영상':'위기대응 사진'}</span>`:`<div class="seg" role="group" aria-label="평가"><button type="button" class="good" data-gi="${i}" data-g="good" aria-pressed="${d.grade==='good'}">우수</button><button type="button" class="bad" data-gi="${i}" data-g="bad" aria-pressed="${d.grade==='bad'}">미흡</button></div>`}
+      ${isC?`<span class="pill g-crisis" style="align-self:flex-start">${d.kind==='video'?'위기대응 영상':'위기대응 사진'}</span>`:`<div class="seg" role="group" aria-label="평가"><button type="button" class="good" data-gi="${i}" data-g="good" aria-pressed="${d.grade==='good'}">우수</button><button type="button" class="bad" data-gi="${i}" data-g="bad" aria-pressed="${d.grade==='bad'}">미흡</button><button type="button" class="ref" data-gi="${i}" data-g="ref" aria-pressed="${d.grade==='ref'}">참고</button></div>`}
       <input type="text" id="pl_${d.key}" placeholder="장소 (예: 지하2층 기계실)" value="${esc(d.place)}" maxlength="60">
       <textarea id="ds_${d.key}" placeholder="간단 설명" maxlength="200" rows="2">${esc(d.desc)}</textarea>
-      <div class="row">${d.kind==='video'?'':`<button type="button" class="btn sm" data-ci="${i}">원 표시${d.circles.length?` (${d.circles.length})`:''}</button>`}<button type="button" class="btn sm danger" data-x="${i}">빼기</button></div>
+      <div class="row">${d.kind==='video'?'':`<button type="button" class="btn sm" data-ci="${i}">원·네모 표시${d.circles.length?` (${d.circles.length})`:''}</button>`}<button type="button" class="btn sm danger" data-x="${i}">빼기</button></div>
     </div></div>`).join('')+'</div>';
   const nSel=drafts.filter(d=>d.sel).length;
   bulk.hidden=false;
-  bulk.innerHTML=`${isC?'':`<span class="muted">${nSel?`선택 ${nSel}장`:'선택 없음'}</span><button class="btn sm" id="toGood" ${nSel?'':'disabled'}>선택 → 우수</button><button class="btn sm" id="toBad" ${nSel?'':'disabled'}>선택 → 미흡</button>`}
+  bulk.innerHTML=`${isC?'':`<span class="muted">${nSel?`선택 ${nSel}장`:'선택 없음'}</span><button class="btn sm" id="toGood" ${nSel?'':'disabled'}>선택 → 우수</button><button class="btn sm" id="toBad" ${nSel?'':'disabled'}>선택 → 미흡</button><button class="btn sm" id="toRef" ${nSel?'':'disabled'}>선택 → 참고</button>`}
     <button class="btn pri" id="upAll">${drafts.length}개 올리기</button><div class="prog" id="upProg" hidden style="flex-basis:100%"><i></i></div>`;
   const sync=()=>drafts.forEach(d=>{const a=$('#pl_'+d.key),b=$('#ds_'+d.key);if(a)d.place=a.value;if(b)d.desc=b.value});
   $('#selAll').onchange=e=>{sync();drafts.forEach(d=>d.sel=e.target.checked);drawDrafts(r,who)};
@@ -920,7 +928,7 @@ function drawDrafts(r,who){
   drafts.forEach(setPreTag);
   $$('[data-ci]').forEach(b=>b.onclick=()=>{sync();const d=drafts[+b.dataset.ci];openCircleEditor(URL.createObjectURL(d.file),d.w,d.h,d.circles,res=>{d.circles=res;drawDrafts(r,who)})});
   const setG=g=>{sync();drafts.forEach(d=>{if(d.sel){d.grade=g;d.sel=false}});drawDrafts(r,who)};
-  if(!isC){$('#toGood').onclick=()=>setG('good');$('#toBad').onclick=()=>setG('bad')}
+  if(!isC){$('#toGood').onclick=()=>setG('good');$('#toBad').onclick=()=>setG('bad');$('#toRef').onclick=()=>setG('ref')}
   $('#upAll').onclick=async()=>{sync();const btn=$('#upAll');btn.disabled=true;const pr=$('#upProg');pr.hidden=false;
     if(SERVER){const list=[...drafts];const base=Date.now();let done=0;
       const upd=()=>{done=list.filter(d=>d.st==='ok').length;pr.firstChild.style.width=(done/list.length*90)+'%';btn.textContent=`올리는 중 ${done}/${list.length}`};
@@ -959,7 +967,7 @@ function paintMine(all,r,who){
   const box=$('#mine');if(!box)return;
   const P=PART[who.part];const list=all.filter(p=>p.part===who.part);const mineN=list.filter(p=>p.by===who.name).length;
   const groups=who.part==='crisis'?[['사진',list.filter(i=>i.kind!=='video')],['영상',list.filter(i=>i.kind==='video')]]
-    :[['우수',list.filter(i=>i.grade==='good')],['미흡',list.filter(i=>i.grade==='bad')]];
+    :[['우수',list.filter(i=>i.grade==='good')],['미흡',list.filter(i=>i.grade==='bad')],['참고',list.filter(i=>i.grade==='ref')]];
   const card=(p,i,n)=>{const own=p.by===who.name;return `<div class="pc${own?'':' other'}"><div class="box" data-thumb="${p.id}"></div><div class="d">${p.place?`<b>${esc(p.place)}</b> · `:''}${esc(p.desc||'')||'<span class="muted">설명 없음</span>'}</div><div class="m">${esc(p.by||'')}</div><div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button>`}${own&&p.kind!=='video'?`<button class="btn sm" data-edit="${p.id}">편집</button>`:''}${own?`<button class="btn sm danger" data-rm="${p.id}">삭제</button>`:''}</div></div>`};
   box.innerHTML=`<h2>${esc(P?P.n:'')} 사진 <span class="num">${list.length}</span>${mineN!==list.length?` <span class="muted" style="font-size:13px;font-weight:400">· 내가 올린 ${mineN}</span>`:''}</h2>`
     +(list.length?`<div class="muted">강평에 나오는 순서입니다. ◀ ▶ 로 순서를 바꿀 수 있습니다.</div>`+groups.filter(g=>g[1].length).map(([label,items])=>`<div class="muted" style="font-weight:600">${label} ${items.length}</div><div class="grid">${ordered(items).map((p,i,arr)=>card(p,i,arr.length)).join('')}</div>`).join(''):'<div class="muted">아직 올린 사진이 없습니다.</div>');
@@ -984,9 +992,9 @@ function buildSlides(r,photos){
       if(vd.length)S.push({t:'video',p,n:vd.length});
       for(let k=0;k<ph.length;k+=4)S.push({t:'grid',p,items:ph.slice(k,k+4),page:k/4+1,pages:Math.ceil(ph.length/4)});
     }else{
-      const g=ordered(list.filter(x=>x.grade==='good')),b=ordered(list.filter(x=>x.grade==='bad'));
+      const g=ordered(list.filter(x=>x.grade==='good')),b=ordered(list.filter(x=>x.grade==='bad')),rf=ordered(list.filter(x=>x.grade==='ref'));
       S.push({t:'div',p,i,good:g.length,bad:b.length});
-      for(const x of [...g,...b])S.push({t:'photo',p,x});
+      for(const x of [...g,...b,...rf])S.push({t:'photo',p,x});
     }
   }
   return S;
@@ -1152,7 +1160,7 @@ async function excelPhoto(p){ // 양식 칸 비율로 잘라 원을 입혀 JPEG 
   const OW=720,OH=Math.round(OW/XL_R);const c=document.createElement('canvas');c.width=OW;c.height=OH;const g=c.getContext('2d');
   g.drawImage(bm,sx,sy,cw,ch,0,0,OW,OH);
   const k=OW/cw;g.strokeStyle='#FF0000';g.lineWidth=Math.max(4,OW*.008);
-  for(const e of cs){g.beginPath();g.ellipse((e.cx*w-sx)*k,(e.cy*h-sy)*k,Math.max(1,e.rx*w*k),Math.max(1,e.ry*h*k),0,0,Math.PI*2);g.stroke()}
+  for(const e of cs)markPath(g,e,(e.cx*w-sx)*k,(e.cy*h-sy)*k,e.rx*w*k,e.ry*h*k);
   return new Uint8Array(await (await canvasBlob(c,'image/jpeg',.86)).arrayBuffer());
 }
 function anchorXml(row,rid,pid){return `<xdr:oneCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="${XL_W}" cy="${XL_H}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${pid+1}" name="현장사진 ${pid}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="${XLNS}" r:embed="rId${rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${XL_W}" cy="${XL_H}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`}
