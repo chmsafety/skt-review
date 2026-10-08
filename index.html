@@ -196,6 +196,26 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .g4 .cell .ph{max-width:100%;max-height:100%}
 .show .g4 .cell .cc{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:clamp(13px,1.4vw,18px);padding:6px 10px;text-align:center}
 .show video{max-width:100%;max-height:100%;background:#000;border-radius:6px}
+.show .lay{position:relative;background:#DADEE3;border-radius:6px;overflow:visible}
+.show .lp{position:absolute;box-shadow:0 2px 10px rgba(21,32,43,.22);background:#000}
+.show .lp img{display:block;width:100%;height:100%}
+.show .lp svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.show .lp .gb{left:8px;top:8px;font-size:clamp(12px,1.3vw,18px);padding:2px 10px;border-radius:6px}
+.show .lp .cc{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.62);color:#fff;font-size:clamp(12px,1.3vw,17px);padding:5px 9px;text-align:center;line-height:1.3;overflow-wrap:anywhere}
+.show .lay.ed{outline:2px dashed #7F93A6;outline-offset:2px}
+.show .lay.ed .lp{cursor:move;touch-action:none}
+.show .lay.ed .lp.sel{outline:3px solid #2E7CF6;z-index:50!important}
+.show .lp .hd{display:none;position:absolute;width:22px;height:22px;background:#fff;border:3px solid #2E7CF6;border-radius:99px;box-shadow:0 1px 4px rgba(0,0,0,.4);touch-action:none}
+.show .lay.ed .lp.sel .hd{display:block}
+.show .lp .hd.tl{left:-11px;top:-11px;cursor:nwse-resize}.show .lp .hd.tr{right:-11px;top:-11px;cursor:nesw-resize}.show .lp .hd.bl{left:-11px;bottom:-11px;cursor:nesw-resize}.show .lp .hd.br{right:-11px;bottom:-11px;cursor:nwse-resize}
+.show .ltip{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(21,32,43,.86);color:#fff;font-size:14px;padding:8px 16px;border-radius:8px;z-index:3;pointer-events:none}
+.show.ed .nav{display:none}
+.modal.top{z-index:80}
+.pc .ck{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:7px;border:2px solid #fff;background:rgba(255,255,255,.85);display:grid;place-items:center;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
+.pc.on .ck{background:var(--accent);border-color:var(--accent)}
+.pc.on{outline:2px solid var(--accent)}
+.pc .gtag{position:absolute;right:6px;bottom:6px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;background:#2E7CF6;color:#fff;z-index:2}
+.selbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface-2);border-radius:8px;padding:8px 12px}
 .show .nav{position:absolute;top:0;bottom:0;width:22%;border:0;background:transparent}
 .show .nav.l{left:0}.show .nav.r{right:0}
 #netbar{position:fixed;left:0;right:0;top:0;height:3px;z-index:95;pointer-events:none;opacity:0;transition:opacity .2s;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:40% 100%;background-repeat:no-repeat}
@@ -489,6 +509,16 @@ function statusOf(r,photos){
 }
 function countBy(photos){const o={};for(const p of PARTS)o[p.k]={good:0,bad:0,ref:0,crisis:0,video:0};
   for(const x of photos){const c=o[x.part];if(!c)continue;if(x.kind==='video')c.video++;else if(c[x.grade]!==undefined)c[x.grade]++}return o}
+/* 한 장면에 여러 장(묶음): p.lay={g:묶음ID, x,y,w,h} — 16:9 가상 화면(가로·세로 각각 0~1) 기준, 사진 비율 유지 */
+const LAYW=16,LAYH=9;
+function layG(p){return p&&p.lay&&typeof p.lay==='object'&&p.lay.g?p.lay.g:''}
+function fitLay(p,x,y,w,h){const k=Math.min(w*LAYW/(p.w||4),h*LAYH/(p.h||3));const W=(p.w||4)*k/LAYW,H=(p.h||3)*k/LAYH;return {x:x+(w-W)/2,y:y+(h-H)/2,w:W,h:H}}
+function autoLay(items,g){const n=items.length;const co=n<=1?1:n<=2?2:n<=4?2:3,ro=Math.ceil(n/co);const gx=.012,gy=.022;
+  const cw=(1-gx*(co+1))/co,ch=(1-gy*(ro+1))/ro;
+  items.forEach((p,i)=>{const c=i%co,r=Math.floor(i/co);const last=r===ro-1?n-r*co:co;const off=(co-last)*(cw+gx)/2;
+    p.lay={g,...fitLay(p,gx+c*(cw+gx)+off,gy+r*(ch+gy),cw,ch)}})}
+function layH(p,w){return w*LAYW*(p.h||3)/(p.w||4)/LAYH}
+function groupsOf(list){const m=new Map();for(const p of ordered(list)){const g=layG(p);if(!g||p.kind==='video')continue;if(!m.has(g))m.set(g,[]);m.get(g).push(p)}return m}
 function ordered(list){return [...list].sort((a,b)=>(a.order??0)-(b.order??0)||(a.createdAt-b.createdAt))}
 function upLink(r){return location.href.split('#')[0]+'#u/'+r.code}
 
@@ -584,13 +614,16 @@ async function viewSettings(){
 }
 
 /* ================= 회차 상세 (관리자) ================= */
-async function viewRound(id){
+async function viewRound(id){GSEL=null;
   API.rid=id;
   setNav(`<a class="btn sm" href="#">회차 목록</a>`);
   await swr({['round:'+id]:()=>API.round(id),settings:()=>API.settings(),['photos:'+id]:()=>API.photos(id)},d=>renderRound(id,d['round:'+id],d.settings,d['photos:'+id]||[]));
 }
+/* 「한 장면에 묶기」 고르기 상태: {part, ids:Set} */
+let GSEL=null,GTAG=new Map();
 function renderRound(id,r,st,photos){
   if(!r){app.innerHTML='<div class="empty">회차를 찾을 수 없습니다.</div>';return}
+  GTAG=new Map();for(const p of PARTS){let n=0;for(const [g,items] of groupsOf(photos.filter(x=>x.part===p.k))){if(items.length>1)GTAG.set(g,{n:++n,c:items.length})}}
   cSet('code:'+r.code,{round:r,inspectors:st.inspectors||[]});
   const site=st.sites.find(s=>s.id===r.siteId)||{};
   const s=statusOf(r,photos);const c=countBy(photos);
@@ -662,7 +695,16 @@ function renderRound(id,r,st,photos){
   $$('[data-mv]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.id);movePhoto(p,photos,+b.dataset.mv);renderRound(id,r,st,photos)});
   enableDrag(app,photos,()=>renderRound(id,r,st,photos));
   $$('[data-edit]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.edit);editPhotoBox(p,route,true)});
-  $$('.pc [data-thumb]').forEach(el=>{const p=photos.find(x=>x.id===el.dataset.thumb);if(!p||p.kind==='video')return;el.style.cursor='pointer';el.title='눌러서 편집';el.onclick=()=>editPhotoBox(p,route,true)});
+  $$('.pc [data-thumb]').forEach(el=>{const p=photos.find(x=>x.id===el.dataset.thumb);if(!p||p.kind==='video'||(GSEL&&GSEL.part===p.part))return;el.style.cursor='pointer';el.title='눌러서 편집';el.onclick=()=>editPhotoBox(p,route,true)});
+  // 한 장면에 묶기
+  $$('[data-gsel]').forEach(b=>b.onclick=()=>{GSEL={part:b.dataset.gsel,ids:new Set()};renderRound(id,r,st,photos)});
+  const gx=$('#gselX');if(gx)gx.onclick=()=>{GSEL=null;renderRound(id,r,st,photos)};
+  const go=$('#gselOk');if(go)go.onclick=async()=>{const sel=ordered(photos.filter(p=>GSEL.ids.has(p.id)));sel.sort((a,b)=>['good','bad','ref','crisis'].indexOf(a.grade)-['good','bad','ref','crisis'].indexOf(b.grade)||(a.order??0)-(b.order??0));
+    if(sel.length<2)return;const g='G'+Date.now().toString(36);autoLay(sel,g);GSEL=null;sel.forEach(x=>patchList('photos:'+x.roundId,{id:x.id,lay:x.lay}));renderRound(id,r,st,photos);
+    BUSY++;try{await Promise.all(sel.map(x=>API.savePhoto({...x})));toast(`사진 ${sel.length}장을 한 장면으로 묶었습니다. 강평 화면의 「배치 편집」에서 크기·위치를 바꿀 수 있습니다.`,5000)}catch(e){toast('묶음을 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--;renderRound(id,r,st,photos)}};
+  if(GSEL)$$('.pc[data-pid]').forEach(c=>{const p=photos.find(x=>x.id===c.dataset.pid);if(!p||p.part!==GSEL.part)return;c.onclick=e=>{if(e.target.closest('button,a'))return;if(GSEL.ids.has(p.id))GSEL.ids.delete(p.id);else{if(GSEL.ids.size>=8){toast('한 장면에는 8장까지 넣을 수 있습니다.');return}GSEL.ids.add(p.id)}renderRound(id,r,st,photos)}});
+  $$('[data-ung]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.ung);const g=layG(p);const rest=photos.filter(x=>layG(x)===g&&x.id!==p.id);const items=rest.length<=1?[p,...rest]:[p];
+    items.forEach(x=>{x.lay='';patchList('photos:'+x.roundId,{id:x.id,lay:''})});renderRound(id,r,st,photos);BUSY++;Promise.all(items.map(x=>API.savePhoto({...x}))).catch(e=>toast('저장하지 못했습니다: '+e.message,5000)).finally(()=>{BUSY--})});
   $$('[data-add]').forEach(b=>b.onclick=()=>{lsSet('skt_me',{part:b.dataset.add,name:(SERVER&&auth()?auth().name:'관리자')});location.hash='#u/'+r.code});
   $$('[data-rm]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.rm);confirmBox('이 사진을 지웁니다.','삭제',async()=>{
     if(SERVER){patchList('photos:'+p.roundId,p,true);route();BUSY++;API.deletePhoto(p).catch(e=>{toast('삭제하지 못했습니다: '+e.message,5000);route()}).finally(()=>{BUSY--})}
@@ -675,18 +717,19 @@ function partSection(p,photos,c){
   const groups=p.k==='crisis'?[['crisis','사진',list.filter(i=>i.kind!=='video')],['video','영상',list.filter(i=>i.kind==='video')]]
     :[['good','우수',list.filter(i=>i.grade==='good')],['bad','미흡',list.filter(i=>i.grade==='bad')],['ref','참고',list.filter(i=>i.grade==='ref')]];
   const sum=p.k==='crisis'?`사진 <b class="num">${x.crisis}</b> · 영상 <b class="num">${x.video}</b>`:`<span style="color:var(--good)">우수 <b class="num">${x.good}</b></span> · <span style="color:var(--bad)">미흡 <b class="num">${x.bad}</b></span>${x.ref?` · 참고 <b class="num">${x.ref}</b>`:''}`;
-  return `<section class="part panel"><div class="part-h"><span class="dot" style="${p.k==='crisis'?'background:var(--crisis)':''}"></span><h2>${PARTS.indexOf(p)+1}. ${p.n}</h2><span class="muted">${sum}</span>${p.sheet?`<span class="muted">· 엑셀 「${p.sheet}. ${p.n==='기계설비'?'기계':p.n}」 시트</span>`:'<span class="muted">· 엑셀 제외</span>'}<span style="flex:1"></span><button class="btn sm" data-add="${p.k}">＋ 사진 추가</button></div>
+  return `<section class="part panel"><div class="part-h"><span class="dot" style="${p.k==='crisis'?'background:var(--crisis)':''}"></span><h2>${PARTS.indexOf(p)+1}. ${p.n}</h2><span class="muted">${sum}</span>${p.sheet?`<span class="muted">· 엑셀 「${p.sheet}. ${p.n==='기계설비'?'기계':p.n}」 시트</span>`:'<span class="muted">· 엑셀 제외</span>'}<span style="flex:1"></span>${list.filter(i=>i.kind!=='video').length>1&&!(GSEL&&GSEL.part===p.k)?`<button class="btn sm" data-gsel="${p.k}">한 장면에 묶기</button>`:''}<button class="btn sm" data-add="${p.k}">＋ 사진 추가</button></div>
+  ${GSEL&&GSEL.part===p.k?`<div class="selbar"><b>한 장면에 넣을 사진을 누르세요</b><span class="muted">고른 사진 <span class="num">${GSEL.ids.size}</span>장 (2~8장)</span><span style="flex:1"></span><button class="btn sm" id="gselX">취소</button><button class="btn sm pri" id="gselOk" ${GSEL.ids.size<2?'disabled':''}>묶기</button></div>`:''}
   ${list.length?groups.filter(g=>g[2].length).map(([g,label,items])=>`<div class="muted" style="font-weight:600">${label} ${items.length}</div><div class="grid">${ordered(items).map((it,i,arr)=>photoCard(it,i,arr.length)).join('')}</div>`).join(''):'<div class="muted">아직 올라온 사진이 없습니다.</div>'}</section>`;
 }
 function photoCard(p,i,n){
-  const g=p.kind==='video'?'crisis':p.grade;
-  return `<div class="pc" ${p.kind==='video'?'':`data-pid="${p.id}"`}><div class="box" data-thumb="${p.id}"></div>
+  const g=p.kind==='video'?'crisis':p.grade;const on=GSEL&&GSEL.ids.has(p.id);const gt=GTAG.get(layG(p));
+  return `<div class="pc${on?' on':''}" ${p.kind==='video'?'':`data-pid="${p.id}"`}><div class="box" data-thumb="${p.id}">${GSEL&&GSEL.part===p.part&&p.kind!=='video'?`<span class="ck">${on?'✓':''}</span>`:''}${gt?`<span class="gtag">묶음 ${gt.n} · ${gt.c}장</span>`:''}</div>
   <div class="d">${p.place?`<b>${esc(p.place)}</b> · `:''}${esc(p.desc||'')||'<span class="muted">설명 없음</span>'}</div>
   <div class="m">${esc(p.by||'')} · ${new Date(p.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-  <div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button><button class="btn sm" data-edit="${p.id}">편집</button>`}<button class="btn sm danger" data-rm="${p.id}">삭제</button></div></div>`}
+  <div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button><button class="btn sm" data-edit="${p.id}">편집</button>`}${GTAG.get(layG(p))?`<button class="btn sm" data-ung="${p.id}">묶음 풀기</button>`:''}<button class="btn sm danger" data-rm="${p.id}">삭제</button></div></div>`}
 async function fillThumbs(photos,root=document){
   await Promise.all($$('[data-thumb]',root).map(async el=>{const p=photos.find(x=>x.id===el.dataset.thumb);if(!p)return;
-    const g=p.kind==='video'?'crisis':p.grade;const tag=`<span class="badge g-${g}">${p.kind==='video'?'영상':GRADE[g]}</span>${p.kind==='video'&&p.dur?`<span class="vtag">${(+p.dur).toFixed(1)}s</span>`:''}`;
+    const g=p.kind==='video'?'crisis':p.grade;const keep=$$('.ck,.gtag',el).map(q=>q.outerHTML).join('');const tag=`<span class="badge g-${g}">${p.kind==='video'?'영상':GRADE[g]}</span>${p.kind==='video'&&p.dur?`<span class="vtag">${(+p.dur).toFixed(1)}s</span>`:''}`+keep;
     el.innerHTML=`<span class="muted">불러오는 중…</span>${tag}`;
     try{const u=await blobUrl(p.thumbId||p.fileId);el.innerHTML=u?frameHTML(p,u,4/3,tag):`<span class="muted">사진 없음</span>${tag}`}catch(e){el.innerHTML=`<span class="muted">불러오지 못함</span>${tag}`}}))}
 async function movePhoto(p,photos,dir){
@@ -1030,11 +1073,14 @@ function buildSlides(r,photos){
       const ph=ordered(list.filter(x=>x.kind!=='video'));const vd=list.filter(x=>x.kind==='video');
       S.push({t:'div',p,i});
       if(vd.length)S.push({t:'video',p,n:vd.length});
-      for(let k=0;k<ph.length;k+=4)S.push({t:'grid',p,items:ph.slice(k,k+4),page:k/4+1,pages:Math.ceil(ph.length/4)});
+      const gm=groupsOf(ph),seen=new Set();const loose=[];let pg=0;const flush=()=>{for(let k=0;k<loose.length;k+=4)S.push({t:'grid',p,items:loose.slice(k,k+4),page:++pg});loose.length=0};
+      for(const x of ph){const g=layG(x);if(g&&gm.get(g).length>1){if(!seen.has(g)){seen.add(g);flush();S.push({t:'group',p,g,items:gm.get(g)})}}else loose.push(x)}
+      flush();
     }else{
       const g=ordered(list.filter(x=>x.grade==='good')),b=ordered(list.filter(x=>x.grade==='bad')),rf=ordered(list.filter(x=>x.grade==='ref'));
       S.push({t:'div',p,i,good:g.length,bad:b.length});
-      for(const x of [...g,...b,...rf])S.push({t:'photo',p,x});
+      const gm=groupsOf(list),seen=new Set();
+      for(const x of [...g,...b,...rf]){const gg=layG(x);if(gg&&gm.get(gg).length>1){if(!seen.has(gg)){seen.add(gg);S.push({t:'group',p,g:gg,items:gm.get(gg)})}}else S.push({t:'photo',p,x})}
     }
   }
   return S;
@@ -1062,31 +1108,63 @@ async function viewShow(id){
     else if(s.t==='photo'){inner=await ph(s.x,vw-pad,vh-190,s.x.grade==='bad'?'<span class="gb g-fix">개선필요</span>':`<span class="gb g-${s.x.grade}">${GRADE[s.x.grade]}</span>`);inner+=`<div class="cap">${esc(s.x.desc||'')}${s.x.place?`<small>${esc(s.x.place)}</small>`:''}</div>`}
     else if(s.t==='grid'){const gw=vw-24,gh=vh-68,n=s.items.length,co=n>1?2:1,ro=n>2?2:1,cw=(gw-(co-1)*10)/co,chh=(gh-(ro-1)*10)/ro;const cells=await Promise.all(s.items.map(async x=>`<div class="cell">${await ph(x,cw,chh,x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:'')}</div>`));
       inner=`<div class="g4 n${Math.min(n,3)}" style="width:${gw}px;height:${gh}px">${cells.join('')}</div>`}
+    else if(s.t==='group'){const aw=vw-24,ah=vh-68;const CW=Math.floor(Math.min(aw,ah*LAYW/LAYH)),CH=Math.floor(CW*LAYH/LAYW);
+      const cells=await Promise.all(s.items.map(async(x,i)=>{const u=await blobUrl(x.fileId);const L=x.lay;
+        return `<div class="lp" data-lid="${x.id}" style="left:${(L.x*CW).toFixed(1)}px;top:${(L.y*CH).toFixed(1)}px;width:${(L.w*CW).toFixed(1)}px;height:${(L.h*CH).toFixed(1)}px;z-index:${i+1}"><img src="${u}" alt="" draggable="false"><svg viewBox="0 0 ${x.w} ${x.h}" preserveAspectRatio="none">${ellipses(x.circles,x.w,x.h,Math.max(4,x.w*.008))}</svg>${x.part==='crisis'?'':x.grade==='bad'?'<span class="gb g-fix">개선필요</span>':`<span class="gb g-${x.grade}">${GRADE[x.grade]}</span>`}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}<i class="hd tl" data-h="tl"></i><i class="hd tr" data-h="tr"></i><i class="hd bl" data-h="bl"></i><i class="hd br" data-h="br"></i></div>`}));
+      inner=`<div class="lay${EDL?' ed':''}" style="width:${CW}px;height:${CH}px">${cells.join('')}</div>${EDL?'<div class="ltip">사진을 끌어 옮기고, 모서리 점을 끌어 크기를 바꿉니다</div>':''}`}
     else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#48566A" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#48566A">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
-    el.innerHTML=`<div class="st${s.t==='grid'?' gst':''}">${inner}</div>
+    el.classList.toggle('ed',!!EDL);el.innerHTML=`<div class="st${s.t==='grid'||s.t==='group'?' gst':''}">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
-      <div class="meta"><span>${pn}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
+      <div class="meta"><span>${pn}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}${s.t==='group'?(EDL?'<button class="btn" id="shLa">자동 배치</button><button class="btn" id="shLu">묶음 풀기</button><button class="btn" id="shLc">취소</button><button class="btn pri" id="shLs">저장</button>':'<button class="btn" id="shL">배치 편집</button>'):''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
     $('.nav.l',el).onclick=()=>go(-1);$('.nav.r',el).onclick=()=>go(1);
     $('#shX',el).onclick=exit;
     $('#shF',el).onclick=()=>{(document.fullscreenElement?document.exitFullscreen():el.requestFullscreen?.())?.catch?.(()=>{})};
     const e=$('#shE',el);if(e)e.onclick=()=>quickEdit(s.x);
+    if(s.t==='group')wireLay(s);
     const v=$('#shV',el);if(v)v.play().catch(()=>{});
     if(s.t==='video'&&r.mergedId&&!v){const my=idx,mid=r.mergedId;BIGPROG.set(mid,(d,n)=>{const t=$('#shVL',el);if(t)t.textContent=`영상 불러오는 중 ${d}/${n}`});
       blobUrl(mid).then(u=>{if(u&&idx===my&&document.body.contains(el))render()}).catch(e=>{const t=$('#shVL',el);if(t)t.textContent='영상을 불러오지 못했습니다: '+e.message})}
   };
   const go=d=>{const n=idx+d;if(n<0||n>=S.length)return;idx=n;render()};
   const exit=()=>{removeEventListener('keydown',key);removeEventListener('resize',rs);if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});location.hash='#r/'+id};
-  const key=e=>{if($('.modal',layer))return;if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(1)}else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(-1)}else if(e.key==='Escape'&&!document.fullscreenElement)exit();else if(e.key==='Home'){idx=0;render()}};
+  const key=e=>{if($('.modal',layer)||EDL)return;if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(1)}else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(-1)}else if(e.key==='Escape'&&!document.fullscreenElement)exit();else if(e.key==='Home'){idx=0;render()}};
   let rt;const rs=()=>{clearTimeout(rt);rt=setTimeout(render,150)};
   addEventListener('keydown',key);addEventListener('resize',rs);
-  let sx=null;el.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});el.addEventListener('touchend',e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50)go(dx<0?1:-1);sx=null});
+  let sx=null;el.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});el.addEventListener('touchend',e=>{if(sx===null||EDL)return;const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50)go(dx<0?1:-1);sx=null});
   const quickEdit=x=>{const m=document.createElement('div');m.className='modal';m.innerHTML=`<form class="sheet"><h2>설명 수정</h2><label class="f">장소<input type="text" id="qP" value="${esc(x.place||'')}"></label><label class="f">간단 설명<textarea id="qD">${esc(x.desc||'')}</textarea></label><div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="qN">취소</button><button class="btn pri">저장</button></div></form>`;
     layer.appendChild(m);$('#qD',m).focus();$('#qN',m).onclick=()=>m.remove();
     $('form',m).onsubmit=async ev=>{ev.preventDefault();x.place=$('#qP',m).value.trim();x.desc=$('#qD',m).value.trim();await API.savePhoto(x);m.remove();render()}};
+  /* 묶음 장면 배치 편집: 사진 끌어 옮기기 + 모서리 점으로 크기(비율 유지) */
+  let EDL=null;
+  const wireLay=s=>{
+    const b=$('#shL',el);if(b)b.onclick=()=>{EDL={g:s.g,orig:s.items.map(x=>({id:x.id,lay:{...x.lay}}))};render()};
+    if(!EDL)return;
+    const lay=$('.lay',el);const CW=lay.offsetWidth,CH=lay.offsetHeight;
+    const apply=(x,d)=>{d.style.left=(x.lay.x*CW).toFixed(1)+'px';d.style.top=(x.lay.y*CH).toFixed(1)+'px';d.style.width=(x.lay.w*CW).toFixed(1)+'px';d.style.height=(x.lay.h*CH).toFixed(1)+'px'};
+    const sel=d=>{$$('.lp',lay).forEach(q=>q.classList.remove('sel'));d.classList.add('sel')};
+    $$('.lp',lay).forEach(d=>{const x=s.items.find(q=>q.id===d.dataset.lid);
+      d.onpointerdown=ev=>{if(ev.button>0)return;ev.preventDefault();ev.stopPropagation();sel(d);
+        const h=ev.target.closest('.hd');const hd=h?h.dataset.h:null;const sx=ev.clientX,sy=ev.clientY,L0={...x.lay};const ar=(x.h||3)/(x.w||4)*LAYW/LAYH;
+        const mv=e2=>{const dx=(e2.clientX-sx)/CW,dy=(e2.clientY-sy)/CH;
+          if(!hd){x.lay.x=Math.min(1-L0.w,Math.max(0,L0.x+dx));x.lay.y=Math.min(1-L0.h,Math.max(0,L0.y+dy))}
+          else{const sgnX=hd[1]==='r'?1:-1,sgnY=hd[0]==='b'?1:-1;let w=Math.max(.08,L0.w+sgnX*dx);
+            if(sgnX>0)w=Math.min(w,1-L0.x);else w=Math.min(w,L0.x+L0.w);let hh=w*ar;
+            if(sgnY>0&&L0.y+hh>1){hh=1-L0.y;w=hh/ar}if(sgnY<0&&L0.y+L0.h-hh<0){hh=L0.y+L0.h;w=hh/ar}
+            x.lay.w=w;x.lay.h=hh;x.lay.x=sgnX>0?L0.x:L0.x+L0.w-w;x.lay.y=sgnY>0?L0.y:L0.y+L0.h-hh}
+          apply(x,d)};
+        const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up)};
+        addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up)}});
+    $('#shLa',el).onclick=()=>{autoLay(s.items,s.g);render()};
+    $('#shLc',el).onclick=()=>{EDL.orig.forEach(o=>{const x=s.items.find(q=>q.id===o.id);if(x)x.lay=o.lay});EDL=null;render()};
+    $('#shLs',el).onclick=async()=>{const ch=s.items.filter(x=>{const o=EDL.orig.find(q=>q.id===x.id);return !o||JSON.stringify(o.lay)!==JSON.stringify(x.lay)});
+      EDL=null;render();if(!ch.length)return;BUSY++;try{await Promise.all(ch.map(x=>{patchList('photos:'+x.roundId,{id:x.id,lay:x.lay});return API.savePhoto({...x})}));toast('배치를 저장했습니다.')}catch(e){toast('배치를 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--}};
+    $('#shLu',el).onclick=()=>{const m=document.createElement('div');m.className='modal top';m.innerHTML=`<div class="sheet"><div style="font-size:16px">이 장면의 묶음을 풀어 사진을 한 장씩 보여 줍니다.</div><div class="row" style="justify-content:flex-end"><button class="btn" id="luN">취소</button><button class="btn pri" id="luY">풀기</button></div></div>`;layer.appendChild(m);$('#luN',m).onclick=()=>m.remove();$('#luY',m).onclick=async()=>{m.remove();const items=s.items.slice();EDL=null;BUSY++;
+      try{await Promise.all(items.map(x=>{x.lay='';patchList('photos:'+x.roundId,{id:x.id,lay:''});return API.savePhoto({...x})}));S=buildSlides(r,photos);idx=Math.min(idx,S.length-1);toast('묶음을 풀었습니다.')}catch(e){toast('풀지 못했습니다: '+e.message,5000)}finally{BUSY--}render()}};
+  };
   el.focus();render();
   freshP.then(([fr,fp])=>{if(!fr||!document.body.contains(el))return;cSet('round:'+id,fr);cSet('photos:'+id,fp);
-    if(JSON.stringify([fr,fp])===JSON.stringify([r,photos]))return;
-    const key=x=>x.t+'|'+(x.x?x.x.id:'')+'|'+(x.p?x.p.k:'')+'|'+(x.page||'');const cur=S[idx]?key(S[idx]):'';
+    if(EDL||JSON.stringify([fr,fp])===JSON.stringify([r,photos]))return;
+    const key=x=>x.t+'|'+(x.x?x.x.id:x.g||'')+'|'+(x.p?x.p.k:'')+'|'+(x.page||'');const cur=S[idx]?key(S[idx]):'';
     r=fr;photos=fp;S=buildSlides(r,photos);if(r.mergedId)blobUrl(r.mergedId).catch(()=>{});idx=Math.max(0,S.findIndex(x=>key(x)===cur));
     photos.filter(p=>p.kind!=='video').forEach(p=>API.getBlob(p.fileId).catch(()=>{}));render()}).catch(()=>{});
 }
