@@ -164,7 +164,7 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .ph img{display:block;width:100%;height:100%}
 .show .ph svg{position:absolute;inset:0;width:100%;height:100%}
 .show .ph .gb{left:14px;top:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-.show .gb.g-fix{background:#F47920;color:#fff}
+.show .gb.g-fix,.lp .gb.g-fix{background:#F47920;color:#fff}
 .show .gb{position:absolute;left:24px;top:20px;font-size:26px;font-weight:700;padding:4px 18px;border-radius:8px;letter-spacing:.02em}
 .show .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;max-width:min(1100px,92vw);text-align:center;font-size:clamp(18px,2.4vw,30px);font-weight:600;line-height:1.35;background:rgba(255,255,255,.94);color:#15202B;box-shadow:0 2px 12px rgba(21,32,43,.12);padding:10px 22px;border-radius:10px;text-wrap:balance}
 .show .cap small{display:block;font-size:.62em;font-weight:500;color:#48566A}
@@ -196,18 +196,18 @@ table.t input{min-height:34px;padding:5px 8px}
 .show .g4 .cell .ph{max-width:100%;max-height:100%}
 .show .g4 .cell .cc{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:clamp(13px,1.4vw,18px);padding:6px 10px;text-align:center}
 .show video{max-width:100%;max-height:100%;background:#000;border-radius:6px}
-.show .lay{position:relative;background:#DADEE3;border-radius:6px;overflow:visible}
-.show .lp{position:absolute;box-shadow:0 2px 10px rgba(21,32,43,.22);background:#000}
-.show .lp img{display:block;width:100%;height:100%}
-.show .lp svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.show .lp .gb{left:8px;top:8px;font-size:clamp(12px,1.3vw,18px);padding:2px 10px;border-radius:6px}
-.show .lp .cc{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.62);color:#fff;font-size:clamp(12px,1.3vw,17px);padding:5px 9px;text-align:center;line-height:1.3;overflow-wrap:anywhere}
-.show .lay.ed{outline:2px dashed #7F93A6;outline-offset:2px}
-.show .lay.ed .lp{cursor:move;touch-action:none}
-.show .lay.ed .lp.sel{outline:3px solid #2E7CF6;z-index:50!important}
-.show .lp .hd{display:none;position:absolute;width:22px;height:22px;background:#fff;border:3px solid #2E7CF6;border-radius:99px;box-shadow:0 1px 4px rgba(0,0,0,.4);touch-action:none}
-.show .lay.ed .lp.sel .hd{display:block}
-.show .lp .hd.tl{left:-11px;top:-11px;cursor:nwse-resize}.show .lp .hd.tr{right:-11px;top:-11px;cursor:nesw-resize}.show .lp .hd.bl{left:-11px;bottom:-11px;cursor:nesw-resize}.show .lp .hd.br{right:-11px;bottom:-11px;cursor:nwse-resize}
+.lay{position:relative;background:#DADEE3;border-radius:6px;overflow:visible}
+.lp{position:absolute;box-shadow:0 2px 10px rgba(21,32,43,.22);background:#000}
+.lp img{display:block;width:100%;height:100%}
+.lp svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.lp .gb{position:absolute;color:#fff;font-weight:700;left:8px;top:8px;font-size:clamp(12px,1.3vw,18px);padding:2px 10px;border-radius:6px}
+.lp .cc{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.62);color:#fff;font-size:clamp(12px,1.3vw,17px);padding:5px 9px;text-align:center;line-height:1.3;overflow-wrap:anywhere}
+.lay.ed{outline:2px dashed #7F93A6;outline-offset:2px}
+.lay.ed .lp{cursor:move;touch-action:none}
+.lay.ed .lp.sel{outline:3px solid #2E7CF6;z-index:50!important}
+.lp .hd{display:none;position:absolute;width:22px;height:22px;background:#fff;border:3px solid #2E7CF6;border-radius:99px;box-shadow:0 1px 4px rgba(0,0,0,.4);touch-action:none}
+.lay.ed .lp.sel .hd{display:block}
+.lp .hd.tl{left:-11px;top:-11px;cursor:nwse-resize}.lp .hd.tr{right:-11px;top:-11px;cursor:nesw-resize}.lp .hd.bl{left:-11px;bottom:-11px;cursor:nesw-resize}.lp .hd.br{right:-11px;bottom:-11px;cursor:nwse-resize}
 .show .ltip{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(21,32,43,.86);color:#fff;font-size:14px;padding:8px 16px;border-radius:8px;z-index:3;pointer-events:none}
 .show.ed .nav{display:none}
 .modal.top{z-index:80}
@@ -518,6 +518,42 @@ function autoLay(items,g){const n=items.length;const co=n<=1?1:n<=2?2:n<=4?2:3,r
   items.forEach((p,i)=>{const c=i%co,r=Math.floor(i/co);const last=r===ro-1?n-r*co:co;const off=(co-last)*(cw+gx)/2;
     p.lay={g,...fitLay(p,gx+c*(cw+gx)+off,gy+r*(ch+gy),cw,ch)}})}
 function layH(p,w){return w*LAYW*(p.h||3)/(p.w||4)/LAYH}
+/* 묶음 배치 편집 모달 — 사진 업로드/편집 화면에서 바로. 끌어 옮기기 + 모서리 점으로 크기(비율 유지) */
+function layoutHTML(items,urls,CW,CH){return items.map((x,i)=>{const L=x.lay;
+  return `<div class="lp" data-lid="${x.id}" style="left:${(L.x*CW).toFixed(1)}px;top:${(L.y*CH).toFixed(1)}px;width:${(L.w*CW).toFixed(1)}px;height:${(L.h*CH).toFixed(1)}px;z-index:${i+1}"><img src="${urls[i]||''}" alt="" draggable="false"><svg viewBox="0 0 ${x.w} ${x.h}" preserveAspectRatio="none">${ellipses(x.circles,x.w,x.h,Math.max(4,x.w*.008))}</svg>${x.part==='crisis'?'':x.grade==='bad'?'<span class="gb g-fix">개선필요</span>':`<span class="gb g-${x.grade}">${GRADE[x.grade]}</span>`}${x.desc||x.place?`<div class="cc">${esc([x.place,x.desc].filter(Boolean).join(' · '))}</div>`:''}<i class="hd tl" data-h="tl"></i><i class="hd tr" data-h="tr"></i><i class="hd bl" data-h="bl"></i><i class="hd br" data-h="br"></i></div>`}).join('')}
+function wireLayout(lay,items){const CW=lay.offsetWidth,CH=lay.offsetHeight;
+  const apply=(x,d)=>{d.style.left=(x.lay.x*CW).toFixed(1)+'px';d.style.top=(x.lay.y*CH).toFixed(1)+'px';d.style.width=(x.lay.w*CW).toFixed(1)+'px';d.style.height=(x.lay.h*CH).toFixed(1)+'px'};
+  const sel=d=>{$$('.lp',lay).forEach(q=>q.classList.remove('sel'));d.classList.add('sel')};
+  $$('.lp',lay).forEach(d=>{const x=items.find(q=>q.id===d.dataset.lid);
+    d.onpointerdown=ev=>{if(ev.button>0)return;ev.preventDefault();ev.stopPropagation();sel(d);
+      const h=ev.target.closest('.hd');const hd=h?h.dataset.h:null;const sx=ev.clientX,sy=ev.clientY,L0={...x.lay};const ar=(x.h||3)/(x.w||4)*LAYW/LAYH;
+      const mv=e2=>{const dx=(e2.clientX-sx)/CW,dy=(e2.clientY-sy)/CH;
+        if(!hd){x.lay.x=Math.min(1-L0.w,Math.max(0,L0.x+dx));x.lay.y=Math.min(1-L0.h,Math.max(0,L0.y+dy))}
+        else{const sgnX=hd[1]==='r'?1:-1,sgnY=hd[0]==='b'?1:-1;let w=Math.max(.08,L0.w+sgnX*dx);
+          if(sgnX>0)w=Math.min(w,1-L0.x);else w=Math.min(w,L0.x+L0.w);let hh=w*ar;
+          if(sgnY>0&&L0.y+hh>1){hh=1-L0.y;w=hh/ar}if(sgnY<0&&L0.y+L0.h-hh<0){hh=L0.y+L0.h;w=hh/ar}
+          x.lay.w=w;x.lay.h=hh;x.lay.x=sgnX>0?L0.x:L0.x+L0.w-w;x.lay.y=sgnY>0?L0.y:L0.y+L0.h-hh}
+        apply(x,d)};
+      const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up)};
+      addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up)}})}
+async function layoutBox(g,photos,after){
+  const items=ordered(photos.filter(x=>layG(x)===g));if(items.length<2)return;
+  const orig=items.map(x=>({id:x.id,lay:{...x.lay}}));
+  const vw=innerWidth,vh=innerHeight;const CW=Math.max(280,Math.floor(Math.min(vw-56,(vh-190)*LAYW/LAYH))),CH=Math.floor(CW*LAYH/LAYW);
+  const m=document.createElement('div');m.className='modal top';
+  m.innerHTML=`<div class="sheet" style="max-width:none;width:${CW+36}px;padding:14px 18px 16px"><div class="row" style="justify-content:space-between"><h2>묶음 배치 편집 <span class="muted">${items.length}장 · 사진을 끌어 옮기고, 모서리 점을 끌어 크기를 바꿉니다</span></h2><button class="btn sm" id="lbX">✕</button></div><div class="show-lay" style="display:grid;place-items:center"><div class="lay ed" style="width:${CW}px;height:${CH}px;margin:4px 0"><div class="muted" style="padding:20px">사진 불러오는 중…</div></div></div><div class="row" style="justify-content:flex-end"><button class="btn" id="lbA">자동 배치</button><button class="btn" id="lbU">묶음 풀기</button><span style="flex:1"></span><button class="btn" id="lbC">취소</button><button class="btn pri" id="lbS">저장</button></div></div>`;
+  layer.appendChild(m);const lay=$('.lay',m);
+  const urls=await Promise.all(items.map(x=>blobUrl(x.thumbId||x.fileId).catch(()=>'')));
+  const draw=()=>{lay.innerHTML=layoutHTML(items,urls,CW,CH);wireLayout(lay,items)};draw();
+  const restore=()=>orig.forEach(o=>{const x=items.find(q=>q.id===o.id);if(x)x.lay=o.lay});
+  const close=()=>m.remove();
+  $('#lbX',m).onclick=$('#lbC',m).onclick=()=>{restore();close()};
+  $('#lbA',m).onclick=()=>{autoLay(items,g);draw()};
+  $('#lbS',m).onclick=async()=>{const ch=items.filter(x=>{const o=orig.find(q=>q.id===x.id);return JSON.stringify(o.lay)!==JSON.stringify(x.lay)});close();if(!ch.length)return;
+    ch.forEach(x=>patchList('photos:'+x.roundId,{id:x.id,lay:x.lay}));BUSY++;try{await Promise.all(ch.map(x=>API.savePhoto({...x})));toast('배치를 저장했습니다.')}catch(e){toast('배치를 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--;after&&after()}};
+  $('#lbU',m).onclick=()=>{if(!confirm('이 묶음을 풀어 사진을 한 장씩 보여 줍니다.'))return;restore();close();
+    items.forEach(x=>{x.lay='';patchList('photos:'+x.roundId,{id:x.id,lay:''})});after&&after();BUSY++;Promise.all(items.map(x=>API.savePhoto({...x}))).then(()=>toast('묶음을 풀었습니다.')).catch(e=>toast('풀지 못했습니다: '+e.message,5000)).finally(()=>{BUSY--})};
+}
 function groupsOf(list){const m=new Map();for(const p of ordered(list)){const g=layG(p);if(!g||p.kind==='video')continue;if(!m.has(g))m.set(g,[]);m.get(g).push(p)}return m}
 function ordered(list){return [...list].sort((a,b)=>(a.order??0)-(b.order??0)||(a.createdAt-b.createdAt))}
 function upLink(r){return location.href.split('#')[0]+'#u/'+r.code}
@@ -701,10 +737,9 @@ function renderRound(id,r,st,photos){
   const gx=$('#gselX');if(gx)gx.onclick=()=>{GSEL=null;renderRound(id,r,st,photos)};
   const go=$('#gselOk');if(go)go.onclick=async()=>{const sel=ordered(photos.filter(p=>GSEL.ids.has(p.id)));sel.sort((a,b)=>['good','bad','ref','crisis'].indexOf(a.grade)-['good','bad','ref','crisis'].indexOf(b.grade)||(a.order??0)-(b.order??0));
     if(sel.length<2)return;const g='G'+Date.now().toString(36);autoLay(sel,g);GSEL=null;sel.forEach(x=>patchList('photos:'+x.roundId,{id:x.id,lay:x.lay}));renderRound(id,r,st,photos);
-    BUSY++;try{await Promise.all(sel.map(x=>API.savePhoto({...x})));toast(`사진 ${sel.length}장을 한 장면으로 묶었습니다. 강평 화면의 「배치 편집」에서 크기·위치를 바꿀 수 있습니다.`,5000)}catch(e){toast('묶음을 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--;renderRound(id,r,st,photos)}};
+    BUSY++;try{await Promise.all(sel.map(x=>API.savePhoto({...x})));toast(`사진 ${sel.length}장을 한 장면으로 묶었습니다.`)}catch(e){toast('묶음을 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--;renderRound(id,r,st,photos);layoutBox(g,photos,()=>renderRound(id,r,st,photos))}};
   if(GSEL)$$('.pc[data-pid]').forEach(c=>{const p=photos.find(x=>x.id===c.dataset.pid);if(!p||p.part!==GSEL.part)return;c.onclick=e=>{if(e.target.closest('button,a'))return;if(GSEL.ids.has(p.id))GSEL.ids.delete(p.id);else{if(GSEL.ids.size>=8){toast('한 장면에는 8장까지 넣을 수 있습니다.');return}GSEL.ids.add(p.id)}renderRound(id,r,st,photos)}});
-  $$('[data-ung]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.ung);const g=layG(p);const rest=photos.filter(x=>layG(x)===g&&x.id!==p.id);const items=rest.length<=1?[p,...rest]:[p];
-    items.forEach(x=>{x.lay='';patchList('photos:'+x.roundId,{id:x.id,lay:''})});renderRound(id,r,st,photos);BUSY++;Promise.all(items.map(x=>API.savePhoto({...x}))).catch(e=>toast('저장하지 못했습니다: '+e.message,5000)).finally(()=>{BUSY--})});
+  $$('[data-lay]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.lay);layoutBox(layG(p),photos,()=>renderRound(id,r,st,photos))});
   $$('[data-add]').forEach(b=>b.onclick=()=>{lsSet('skt_me',{part:b.dataset.add,name:(SERVER&&auth()?auth().name:'관리자')});location.hash='#u/'+r.code});
   $$('[data-rm]').forEach(b=>b.onclick=()=>{const p=photos.find(x=>x.id===b.dataset.rm);confirmBox('이 사진을 지웁니다.','삭제',async()=>{
     if(SERVER){patchList('photos:'+p.roundId,p,true);route();BUSY++;API.deletePhoto(p).catch(e=>{toast('삭제하지 못했습니다: '+e.message,5000);route()}).finally(()=>{BUSY--})}
@@ -726,7 +761,7 @@ function photoCard(p,i,n){
   return `<div class="pc${on?' on':''}" ${p.kind==='video'?'':`data-pid="${p.id}"`}><div class="box" data-thumb="${p.id}">${GSEL&&GSEL.part===p.part&&p.kind!=='video'?`<span class="ck">${on?'✓':''}</span>`:''}${gt?`<span class="gtag">묶음 ${gt.n} · ${gt.c}장</span>`:''}</div>
   <div class="d">${p.place?`<b>${esc(p.place)}</b> · `:''}${esc(p.desc||'')||'<span class="muted">설명 없음</span>'}</div>
   <div class="m">${esc(p.by||'')} · ${new Date(p.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-  <div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button><button class="btn sm" data-edit="${p.id}">편집</button>`}${GTAG.get(layG(p))?`<button class="btn sm" data-ung="${p.id}">묶음 풀기</button>`:''}<button class="btn sm danger" data-rm="${p.id}">삭제</button></div></div>`}
+  <div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button><button class="btn sm" data-edit="${p.id}">편집</button>`}${GTAG.get(layG(p))?`<button class="btn sm pri" data-lay="${p.id}">배치 편집</button>`:''}<button class="btn sm danger" data-rm="${p.id}">삭제</button></div></div>`}
 async function fillThumbs(photos,root=document){
   await Promise.all($$('[data-thumb]',root).map(async el=>{const p=photos.find(x=>x.id===el.dataset.thumb);if(!p)return;
     const g=p.kind==='video'?'crisis':p.grade;const keep=$$('.ck,.gtag',el).map(q=>q.outerHTML).join('');const tag=`<span class="badge g-${g}">${p.kind==='video'?'영상':GRADE[g]}</span>${p.kind==='video'&&p.dur?`<span class="vtag">${(+p.dur).toFixed(1)}s</span>`:''}`+keep;
@@ -1115,12 +1150,11 @@ async function viewShow(id){
     else if(s.t==='video'){inner=r.mergedId?(urlCache.has(r.mergedId)?`<video id="shV" src="${urlCache.get(r.mergedId)}" controls playsinline style="max-height:${vh-170}px"></video>`:`<div class="div"><h3 style="font-size:32px">위기대응 영상</h3><div style="color:#48566A" id="shVL">영상 불러오는 중…</div></div>`)+'<span class="gb g-crisis">위기대응 영상</span>':`<div class="div"><h3 style="font-size:32px">위기대응 영상 ${s.n}개</h3><div style="color:#48566A">회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.</div></div>`}
     el.classList.toggle('ed',!!EDL);el.innerHTML=`<div class="st${s.t==='grid'||s.t==='group'?' gst':''}">${inner}</div>
       <button class="nav l" aria-label="이전"></button><button class="nav r" aria-label="다음"></button>
-      <div class="meta"><span>${pn}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}${s.t==='group'?(EDL?'<button class="btn" id="shLa">자동 배치</button><button class="btn" id="shLu">묶음 풀기</button><button class="btn" id="shLc">취소</button><button class="btn pri" id="shLs">저장</button>':'<button class="btn" id="shL">배치 편집</button>'):''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
+      <div class="meta"><span>${pn}</span><span class="num">${idx+1} / ${S.length}</span>${s.t==='photo'?'<button class="btn" id="shE">설명 수정</button>':''}<button class="btn" id="shF">전체화면</button><button class="btn" id="shX">나가기</button></div>`;
     $('.nav.l',el).onclick=()=>go(-1);$('.nav.r',el).onclick=()=>go(1);
     $('#shX',el).onclick=exit;
     $('#shF',el).onclick=()=>{(document.fullscreenElement?document.exitFullscreen():el.requestFullscreen?.())?.catch?.(()=>{})};
     const e=$('#shE',el);if(e)e.onclick=()=>quickEdit(s.x);
-    if(s.t==='group')wireLay(s);
     const v=$('#shV',el);if(v)v.play().catch(()=>{});
     if(s.t==='video'&&r.mergedId&&!v){const my=idx,mid=r.mergedId;BIGPROG.set(mid,(d,n)=>{const t=$('#shVL',el);if(t)t.textContent=`영상 불러오는 중 ${d}/${n}`});
       blobUrl(mid).then(u=>{if(u&&idx===my&&document.body.contains(el))render()}).catch(e=>{const t=$('#shVL',el);if(t)t.textContent='영상을 불러오지 못했습니다: '+e.message})}
@@ -1134,33 +1168,7 @@ async function viewShow(id){
   const quickEdit=x=>{const m=document.createElement('div');m.className='modal';m.innerHTML=`<form class="sheet"><h2>설명 수정</h2><label class="f">장소<input type="text" id="qP" value="${esc(x.place||'')}"></label><label class="f">간단 설명<textarea id="qD">${esc(x.desc||'')}</textarea></label><div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="qN">취소</button><button class="btn pri">저장</button></div></form>`;
     layer.appendChild(m);$('#qD',m).focus();$('#qN',m).onclick=()=>m.remove();
     $('form',m).onsubmit=async ev=>{ev.preventDefault();x.place=$('#qP',m).value.trim();x.desc=$('#qD',m).value.trim();await API.savePhoto(x);m.remove();render()}};
-  /* 묶음 장면 배치 편집: 사진 끌어 옮기기 + 모서리 점으로 크기(비율 유지) */
-  let EDL=null;
-  const wireLay=s=>{
-    const b=$('#shL',el);if(b)b.onclick=()=>{EDL={g:s.g,orig:s.items.map(x=>({id:x.id,lay:{...x.lay}}))};render()};
-    if(!EDL)return;
-    const lay=$('.lay',el);const CW=lay.offsetWidth,CH=lay.offsetHeight;
-    const apply=(x,d)=>{d.style.left=(x.lay.x*CW).toFixed(1)+'px';d.style.top=(x.lay.y*CH).toFixed(1)+'px';d.style.width=(x.lay.w*CW).toFixed(1)+'px';d.style.height=(x.lay.h*CH).toFixed(1)+'px'};
-    const sel=d=>{$$('.lp',lay).forEach(q=>q.classList.remove('sel'));d.classList.add('sel')};
-    $$('.lp',lay).forEach(d=>{const x=s.items.find(q=>q.id===d.dataset.lid);
-      d.onpointerdown=ev=>{if(ev.button>0)return;ev.preventDefault();ev.stopPropagation();sel(d);
-        const h=ev.target.closest('.hd');const hd=h?h.dataset.h:null;const sx=ev.clientX,sy=ev.clientY,L0={...x.lay};const ar=(x.h||3)/(x.w||4)*LAYW/LAYH;
-        const mv=e2=>{const dx=(e2.clientX-sx)/CW,dy=(e2.clientY-sy)/CH;
-          if(!hd){x.lay.x=Math.min(1-L0.w,Math.max(0,L0.x+dx));x.lay.y=Math.min(1-L0.h,Math.max(0,L0.y+dy))}
-          else{const sgnX=hd[1]==='r'?1:-1,sgnY=hd[0]==='b'?1:-1;let w=Math.max(.08,L0.w+sgnX*dx);
-            if(sgnX>0)w=Math.min(w,1-L0.x);else w=Math.min(w,L0.x+L0.w);let hh=w*ar;
-            if(sgnY>0&&L0.y+hh>1){hh=1-L0.y;w=hh/ar}if(sgnY<0&&L0.y+L0.h-hh<0){hh=L0.y+L0.h;w=hh/ar}
-            x.lay.w=w;x.lay.h=hh;x.lay.x=sgnX>0?L0.x:L0.x+L0.w-w;x.lay.y=sgnY>0?L0.y:L0.y+L0.h-hh}
-          apply(x,d)};
-        const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up)};
-        addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up)}});
-    $('#shLa',el).onclick=()=>{autoLay(s.items,s.g);render()};
-    $('#shLc',el).onclick=()=>{EDL.orig.forEach(o=>{const x=s.items.find(q=>q.id===o.id);if(x)x.lay=o.lay});EDL=null;render()};
-    $('#shLs',el).onclick=async()=>{const ch=s.items.filter(x=>{const o=EDL.orig.find(q=>q.id===x.id);return !o||JSON.stringify(o.lay)!==JSON.stringify(x.lay)});
-      EDL=null;render();if(!ch.length)return;BUSY++;try{await Promise.all(ch.map(x=>{patchList('photos:'+x.roundId,{id:x.id,lay:x.lay});return API.savePhoto({...x})}));toast('배치를 저장했습니다.')}catch(e){toast('배치를 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--}};
-    $('#shLu',el).onclick=()=>{const m=document.createElement('div');m.className='modal top';m.innerHTML=`<div class="sheet"><div style="font-size:16px">이 장면의 묶음을 풀어 사진을 한 장씩 보여 줍니다.</div><div class="row" style="justify-content:flex-end"><button class="btn" id="luN">취소</button><button class="btn pri" id="luY">풀기</button></div></div>`;layer.appendChild(m);$('#luN',m).onclick=()=>m.remove();$('#luY',m).onclick=async()=>{m.remove();const items=s.items.slice();EDL=null;BUSY++;
-      try{await Promise.all(items.map(x=>{x.lay='';patchList('photos:'+x.roundId,{id:x.id,lay:''});return API.savePhoto({...x})}));S=buildSlides(r,photos);idx=Math.min(idx,S.length-1);toast('묶음을 풀었습니다.')}catch(e){toast('풀지 못했습니다: '+e.message,5000)}finally{BUSY--}render()}};
-  };
+  const EDL=null;
   el.focus();render();
   freshP.then(([fr,fp])=>{if(!fr||!document.body.contains(el))return;cSet('round:'+id,fr);cSet('photos:'+id,fp);
     if(EDL||JSON.stringify([fr,fp])===JSON.stringify([r,photos]))return;
