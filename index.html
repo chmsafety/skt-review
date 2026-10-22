@@ -1080,18 +1080,32 @@ async function drawMine(r,who){
   if(BUSY)return;cSet(key,f);
   if(!c||JSON.stringify(f)!==JSON.stringify(c))paintMine(f,r,who);
 }
+/* 점검자 화면 「한 장면에 묶기」 고르기 상태: Set(사진 id) 또는 null */
+let MSEL=null;
 function paintMine(all,r,who){
   const box=$('#mine');if(!box)return;
   const P=PART[who.part];const list=all.filter(p=>p.part===who.part);const mineN=list.filter(p=>p.by===who.name).length;
+  const gt=new Map();{let n=0;for(const [g,items] of groupsOf(list))if(items.length>1)gt.set(g,{n:++n,c:items.length})}
   const groups=who.part==='crisis'?[['사진',list.filter(i=>i.kind!=='video')],['영상',list.filter(i=>i.kind==='video')]]
     :[['우수',list.filter(i=>i.grade==='good')],['미흡',list.filter(i=>i.grade==='bad')],['참고',list.filter(i=>i.grade==='ref')]];
-  const card=(p,i,n)=>{const own=p.by===who.name;return `<div class="pc${own?'':' other'}" ${p.kind==='video'?'':`data-pid="${p.id}"`}><div class="box" data-thumb="${p.id}"></div><div class="d">${p.place?`<b>${esc(p.place)}</b> · `:''}${esc(p.desc||'')||'<span class="muted">설명 없음</span>'}</div><div class="m">${esc(p.by||'')}</div><div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button>`}${own&&p.kind!=='video'?`<button class="btn sm" data-edit="${p.id}">편집</button>`:''}${own?`<button class="btn sm danger" data-rm="${p.id}">삭제</button>`:''}</div></div>`};
+  const card=(p,i,n)=>{const own=p.by===who.name;const on=MSEL&&MSEL.has(p.id);const g=gt.get(layG(p));return `<div class="pc${own?'':' other'}${on?' on':''}" ${p.kind==='video'?'':`data-pid="${p.id}"`}><div class="box" data-thumb="${p.id}">${MSEL&&p.kind!=='video'?`<span class="ck">${on?'✓':''}</span>`:''}${g?`<span class="gtag">묶음 ${g.n} · ${g.c}장</span>`:''}</div><div class="d">${p.place?`<b>${esc(p.place)}</b> · `:''}${esc(p.desc||'')||'<span class="muted">설명 없음</span>'}</div><div class="m">${esc(p.by||'')}</div><div class="a">${p.kind==='video'?'':`<button class="btn sm" data-mv="-1" data-id="${p.id}" ${i===0?'disabled':''} aria-label="앞으로">◀</button><button class="btn sm" data-mv="1" data-id="${p.id}" ${i===n-1?'disabled':''} aria-label="뒤로">▶</button>`}${own&&p.kind!=='video'?`<button class="btn sm" data-edit="${p.id}">편집</button>`:''}${gt.get(layG(p))?`<button class="btn sm pri" data-lay="${p.id}">배치 편집</button>`:''}${own?`<button class="btn sm danger" data-rm="${p.id}">삭제</button>`:''}</div></div>`};
   box.innerHTML=`<h2>${esc(P?P.n:'')} 사진 <span class="num">${list.length}</span>${mineN!==list.length?` <span class="muted" style="font-size:13px;font-weight:400">· 내가 올린 ${mineN}</span>`:''}</h2>`
-    +(list.length?`<div class="muted">강평에 나오는 순서입니다. ◀ ▶ 를 누르거나 사진을 끌어다 놓아 순서를 바꿀 수 있습니다${matchMedia('(pointer:coarse)').matches?'(길게 누른 뒤 끌기)':''}.</div>`+groups.filter(g=>g[1].length).map(([label,items])=>`<div class="muted" style="font-weight:600">${label} ${items.length}</div><div class="grid">${ordered(items).map((p,i,arr)=>card(p,i,arr.length)).join('')}</div>`).join(''):'<div class="muted">아직 올린 사진이 없습니다.</div>');
+    +(list.length?`<div class="muted">강평에 나오는 순서입니다. ◀ ▶ 를 누르거나 사진을 끌어다 놓아 순서를 바꿀 수 있습니다${matchMedia('(pointer:coarse)').matches?'(길게 누른 뒤 끌기)':''}.</div>`
+      +(MSEL?`<div class="selbar"><b>한 장면에 넣을 사진을 누르세요</b><span class="muted">고른 사진 <span class="num">${MSEL.size}</span>장 (2~8장)</span><span style="flex:1"></span><button class="btn sm" id="mselX">취소</button><button class="btn sm pri" id="mselOk" ${MSEL.size<2?'disabled':''}>묶기</button></div>`
+        :list.filter(i=>i.kind!=='video').length>1?`<div><button class="btn sm" id="mselOn">한 장면에 묶기</button> <span class="muted">사진 여러 장을 강평 한 장면에 함께 보여 줍니다.</span></div>`:'')+groups.filter(g=>g[1].length).map(([label,items])=>`<div class="muted" style="font-weight:600">${label} ${items.length}</div><div class="grid">${ordered(items).map((p,i,arr)=>card(p,i,arr.length)).join('')}</div>`).join(''):'<div class="muted">아직 올린 사진이 없습니다.</div>');
   fillThumbs(list,box);
   $$('[data-mv]',box).forEach(b=>b.onclick=()=>{const p=all.find(x=>x.id===b.dataset.id);movePhoto(p,all,+b.dataset.mv);cSet('photos:'+r.id,all);paintMine(all,r,who)});
   enableDrag(box,all,()=>{cSet('photos:'+r.id,all);paintMine(all,r,who)});
   $$('[data-edit]',box).forEach(b=>b.onclick=()=>editPhotoBox(list.find(x=>x.id===b.dataset.edit),()=>drawMine(r,who)));
+  // 한 장면에 묶기
+  const re=()=>{cSet('photos:'+r.id,all);paintMine(all,r,who)};
+  const on=$('#mselOn',box);if(on)on.onclick=()=>{MSEL=new Set();re()};
+  const mx=$('#mselX',box);if(mx)mx.onclick=()=>{MSEL=null;re()};
+  const mo=$('#mselOk',box);if(mo)mo.onclick=async()=>{const sel=ordered(list.filter(p=>MSEL.has(p.id)));sel.sort((a,b)=>['good','bad','ref','crisis'].indexOf(a.grade)-['good','bad','ref','crisis'].indexOf(b.grade)||(a.order??0)-(b.order??0));
+    if(sel.length<2)return;const g='G'+Date.now().toString(36);autoLay(sel,g);MSEL=null;re();
+    BUSY++;try{await Promise.all(sel.map(x=>API.savePhoto({...x})));toast(`사진 ${sel.length}장을 한 장면으로 묶었습니다.`)}catch(e){toast('묶음을 저장하지 못했습니다: '+e.message,5000)}finally{BUSY--;re();layoutBox(g,all,re)}};
+  if(MSEL)$$('.pc[data-pid]',box).forEach(c=>{c.onclick=e=>{if(e.target.closest('button,a'))return;const id=c.dataset.pid;if(MSEL.has(id))MSEL.delete(id);else{if(MSEL.size>=8){toast('한 장면에는 8장까지 넣을 수 있습니다.');return}MSEL.add(id)}re()}});
+  $$('[data-lay]',box).forEach(b=>b.onclick=()=>{const p=list.find(x=>x.id===b.dataset.lay);layoutBox(layG(p),all,re)});
   $$('[data-rm]',box).forEach(b=>b.onclick=()=>{const p=list.find(x=>x.id===b.dataset.rm);confirmBox('이 사진을 지웁니다.','삭제',async()=>{await API.deletePhoto(p);drawMine(r,who)})});
 }
 
