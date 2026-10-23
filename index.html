@@ -90,6 +90,17 @@ textarea{resize:vertical;min-height:64px;line-height:1.45}
 .bars{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .bars div{background:var(--surface-2);border-radius:6px;padding:5px 6px;font-size:11.5px;color:var(--ink-2);display:flex;flex-direction:column}
 .bars b{font-family:var(--f-mono);font-size:14px;color:var(--ink);font-weight:500}
+.yrtabs{overflow-x:auto;scrollbar-width:none}.yrtabs button{white-space:nowrap}
+.hsec{display:flex;flex-direction:column;gap:10px}
+.hhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:4px}
+.hhead h2{margin:0;font-size:17px}.hhead h2 .muted{font-weight:500;font-size:13px;margin-left:6px}
+.hall{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--ink-2);cursor:pointer;min-height:36px}
+.rcw{position:relative;display:flex}.rcw .rc{flex:1}.rcw .rc .t>div:first-child{padding-left:30px}
+.rcw .rsel{position:absolute;left:0;top:0;width:46px;height:52px;display:grid;place-items:center;z-index:2;cursor:pointer}
+.rcw.on .rc{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.rcw .rsel input:disabled{opacity:.35}
+.dlbar{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.dlbar .row{gap:8px}
 .empty{border:1px dashed var(--line);border-radius:12px;padding:28px;text-align:center;color:var(--ink-2)}
 /* 사진 틀 */
 .box{position:relative;background:var(--surface-2);border-radius:8px;overflow:hidden;display:grid;place-items:center;aspect-ratio:4/3}
@@ -565,6 +576,7 @@ async function viewHome(){
 }
 function renderHome(rounds,st){
   if(!Array.isArray(rounds)||!st)return;
+  if(DLBUSY)return;lastHomeSt=st;
   const sites=st.sites.filter(s=>s.use!==false);
   app.innerHTML=`
   <div class="stack">
@@ -581,10 +593,8 @@ function renderHome(rounds,st){
       </div>
       <div class="muted" id="nfHalf"></div>
     </form>
-    ${rounds.length?`<div class="rounds">${rounds.map(r=>{const c=r._c;const s=statusOf(r,{length:c._n});
-      return `<a class="rc" href="#r/${r.id}"><div class="t"><div><div class="nm">${esc(r.siteName)}</div><div class="muted">${fmtD(r.date)} · ${r.year} ${r.half}</div></div><span class="pill ${s.c}">${s.t}</span></div>
-      <div class="bars">${PARTS.map(p=>{const x=c[p.k];const n=p.k==='crisis'?x.crisis+x.video:x.good+x.bad+(x.ref||0);return `<div>${p.n}<b>${n}</b></div>`}).join('')}</div></a>`}).join('')}</div>`
-    :`<div class="empty">아직 회차가 없습니다. <b>새 점검 회차</b>를 눌러 첫 점검을 등록하세요.</div>`}
+    ${rounds.length?homeYears(rounds):`<div class="empty">아직 회차가 없습니다. <b>새 점검 회차</b>를 눌러 첫 점검을 등록하세요.</div>`}
+    <div class="dlbar" id="dlBar" hidden></div>
     <div class="muted">${VERSION}</div>
   </div>`;
   const f=$('#newForm');
@@ -595,8 +605,83 @@ function renderHome(rounds,st){
   f.onsubmit=async e=>{e.preventDefault();const site=sites.find(s=>s.id===$('#nfSite').value);const d=$('#nfDate').value;
     const r={id:'R'+Date.now().toString(36),code:uid(10),siteId:site.id,siteName:site.name,date:d,year:d.slice(0,4),half:halfOf(d),createdAt:Date.now()};
     await API.saveRound(r);location.hash='#r/'+r.id};
+  if(rounds.length)bindHomeYears(rounds);
   prefetchRounds(rounds);
 }
+/* 연도 → 상반기·하반기로 나눠 보여 주고, 사업장(회차)을 체크해 사진 일괄 다운로드 */
+const HOME={year:null,sel:new Set()};
+const photoN=r=>{const c=r._c||{};let v=0;for(const p of PARTS)v+=(c[p.k]&&c[p.k].video)||0;return Math.max(0,(c._n||0)-v)};
+function homeYears(rounds){
+  const years=[...new Set(rounds.map(r=>String(r.year||(r.date||'').slice(0,4))))].filter(Boolean).sort().reverse();
+  let y=HOME.year||lsGet('skt_year',null);if(!years.includes(y))y=years.includes(today().slice(0,4))?today().slice(0,4):years[0];HOME.year=y;
+  const ids=new Set(rounds.map(r=>r.id));for(const id of [...HOME.sel])if(!ids.has(id))HOME.sel.delete(id);
+  const inY=rounds.filter(r=>String(r.year||(r.date||'').slice(0,4))===y);
+  const card=r=>{const c=r._c;const s=statusOf(r,{length:c._n});const n=photoN(r);
+    return `<div class="rcw${HOME.sel.has(r.id)?' on':''}" data-id="${r.id}"><label class="rsel" title="${n?'사진 다운로드에 넣기':'사진 없음'}"><input type="checkbox" class="chk rchk" data-id="${r.id}" ${HOME.sel.has(r.id)?'checked':''} ${n?'':'disabled'} aria-label="${esc(r.siteName)} 선택"></label>
+    <a class="rc" href="#r/${r.id}"><div class="t"><div><div class="nm">${esc(r.siteName)}</div><div class="muted">${fmtD(r.date)} · 사진 <span class="num">${n}</span>장</div></div><span class="pill ${s.c}">${s.t}</span></div>
+    <div class="bars">${PARTS.map(p=>{const x=c[p.k];const k=p.k==='crisis'?x.crisis+x.video:x.good+x.bad+(x.ref||0);return `<div>${p.n}<b>${k}</b></div>`}).join('')}</div></a></div>`};
+  const sec=h=>{const l=inY.filter(r=>r.half===h);const can=l.filter(r=>photoN(r));const all=can.length&&can.every(r=>HOME.sel.has(r.id));
+    return `<section class="hsec"><div class="hhead"><h2>${y}년 ${h}<span class="muted">사업장 ${l.length}곳</span></h2>${can.length?`<label class="hall"><input type="checkbox" class="chk hchk" data-h="${h}" ${all?'checked':''}> ${h} 전체 선택</label>`:''}</div>
+    ${l.length?`<div class="rounds">${l.map(card).join('')}</div>`:`<div class="empty">${y}년 ${h} 점검 회차가 없습니다.</div>`}</section>`};
+  return `<div class="tabs yrtabs" role="tablist">${years.map(x=>`<button role="tab" data-y="${x}" aria-selected="${x===y}">${x}년</button>`).join('')}</div>${sec('상반기')}${sec('하반기')}`;
+}
+function bindHomeYears(rounds){
+  const byId=Object.fromEntries(rounds.map(r=>[r.id,r]));
+  $$('.yrtabs button').forEach(b=>b.onclick=()=>{HOME.year=b.dataset.y;lsSet('skt_year',HOME.year);renderHome(rounds,lastHomeSt)});
+  $$('.rsel').forEach(l=>l.onclick=e=>e.stopPropagation());
+  $$('.rchk').forEach(c=>c.onchange=()=>{c.checked?HOME.sel.add(c.dataset.id):HOME.sel.delete(c.dataset.id);c.closest('.rcw').classList.toggle('on',c.checked);syncHall();paintDl()});
+  $$('.hchk').forEach(c=>c.onchange=()=>{const l=rounds.filter(r=>String(r.year||(r.date||'').slice(0,4))===HOME.year&&r.half===c.dataset.h&&photoN(r));
+    l.forEach(r=>c.checked?HOME.sel.add(r.id):HOME.sel.delete(r.id));
+    $$('.rchk').forEach(x=>{if(l.some(r=>r.id===x.dataset.id)){x.checked=c.checked;x.closest('.rcw').classList.toggle('on',c.checked)}});paintDl()});
+  const syncHall=()=>$$('.hchk').forEach(c=>{const xs=$$('.rchk').filter(x=>!x.disabled&&byId[x.dataset.id]&&byId[x.dataset.id].half===c.dataset.h);c.checked=xs.length>0&&xs.every(x=>x.checked)});
+  const paintDl=()=>{const bar=$('#dlBar');if(!bar)return;const sel=[...HOME.sel].map(id=>byId[id]).filter(Boolean);
+    if(!sel.length){bar.hidden=true;bar.innerHTML='';return}
+    const n=sel.reduce((a,r)=>a+photoN(r),0);const other=sel.filter(r=>String(r.year)!==HOME.year).length;
+    bar.hidden=false;bar.innerHTML=`<div><b>사업장 <span class="num">${sel.length}</span>곳</b> · 사진 <span class="num">${n}</span>장${other?` <span class="muted">(다른 연도 ${other}곳 포함)</span>`:''}<div class="muted" style="font-size:12.5px">영상 제외 · 사업장별·분야별 폴더로 묶은 ZIP · 원 표시 없는 원본</div></div>
+    <div class="row"><button class="btn sm" id="dlClr">선택 해제</button><button class="btn pri" id="dlGo">사진 일괄 다운로드</button></div>`;
+    $('#dlClr').onclick=()=>{HOME.sel.clear();renderHome(rounds,lastHomeSt)};
+    $('#dlGo').onclick=()=>downloadSitePhotos(sel)};
+  paintDl();
+}
+let lastHomeSt=null;
+const fsName=s=>String(s||'').replace(/[\\/:*?"<>|\r\n\t]+/g,'_').replace(/\s+/g,' ').trim().slice(0,60);
+async function downloadSitePhotos(sel){
+  if(DLBUSY)return;DLBUSY=true;
+  const btn=$('#dlGo');if(btn){btn.disabled=true}
+  const yh=[...new Set(sel.map(r=>`${r.year}년 ${r.half}`))];
+  const st=document.createElement('div');st.className='toast';document.body.appendChild(st);
+  const say=t=>{st.textContent=t;if(btn)btn.textContent=t};
+  const keepRid=API.rid;let total=0,done=0,miss=0;
+  try{
+    const zip=new JSZip();const lists=[];
+    say('사진 목록 확인 중…');
+    for(const r of sel){const ph=(await API.photos(r.id)).filter(p=>p.kind!=='video'&&p.fileId);lists.push([r,ph]);total+=ph.length}
+    if(!total){toast('선택한 사업장에 사진이 없습니다.');return}
+    const used=new Set();
+    for(const [r,ph] of lists){
+      API.rid=r.id;
+      let top=`${fsName(r.siteName)}_${String(r.date||'').replaceAll('-','').slice(2)}`;if(yh.length>1)top=`${r.year}년 ${r.half}/${top}`;
+      let t=top,k=2;while(used.has(t))t=`${top}(${k++})`;used.add(t);top=t;
+      const items=[];
+      PARTS.forEach((pt,pi)=>{const inP=ph.filter(p=>p.part===pt.k);
+        const grades=pt.k==='crisis'?[null]:['good','bad','ref'];
+        for(const g of grades){const l=ordered(g?inP.filter(p=>p.grade===g):inP);
+          l.forEach((p,i)=>items.push({p,path:`${top}/${pi+1}.${pt.n}/${g?GRADE[g]+'_':''}${String(i+1).padStart(2,'0')}${p.place?'_'+fsName(p.place):''}`}))}
+        if(pt.k!=='crisis'){const rest=inP.filter(p=>!['good','bad','ref'].includes(p.grade));ordered(rest).forEach((p,i)=>items.push({p,path:`${top}/${pi+1}.${pt.n}/기타_${String(i+1).padStart(2,'0')}`}))}});
+      say(`${r.siteName} 사진 받는 중… ${done}/${total}`);
+      await Promise.all(items.map(async it=>{let b=null;try{b=await API.getBlob(it.p.fileId)}catch(e){}
+        if(b){const ext=/png/.test(b.type)?'png':/webp/.test(b.type)?'webp':'jpg';zip.file(`${it.path}.${ext}`,b,{date:new Date(it.p.createdAt||Date.now())})}else miss++;
+        done++;say(`${r.siteName} 사진 받는 중… ${done}/${total}`)}));
+    }
+    say('ZIP 만드는 중…');
+    const blob=await zip.generateAsync({type:'blob',compression:'STORE'});
+    const nm=yh.length===1?`SKT ${yh[0]} 사옥점검 사진`:'SKT 사옥점검 사진';
+    download(blob,`${nm}_${sel.length===1?fsName(sel[0].siteName):sel.length+'곳'}_${today().replaceAll('-','').slice(2)}.zip`);
+    toast(`사업장 ${sel.length}곳 · 사진 ${total-miss}장(${(blob.size/1048576).toFixed(1)}MB)을 내려받았습니다.`+(miss?` ${miss}장은 불러오지 못했습니다.`:''),miss?7000:4000);
+  }catch(e){toast('사진을 내려받지 못했습니다: '+e.message,6000)}
+  finally{API.rid=keepRid;st.remove();DLBUSY=false;const b=$('#dlGo');if(b){b.disabled=false;b.textContent='사진 일괄 다운로드'}}
+}
+let DLBUSY=false;
 let prefetched=false;
 async function prefetchRounds(rounds){ // 최근 회차를 미리 받아 두어 눌렀을 때 바로 열리게
   if(!SERVER||prefetched)return;prefetched=true;
