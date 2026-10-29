@@ -1426,7 +1426,7 @@ async function makeExcel(r,photos,progSel){
 
 /* ================= 강평 PPT 내려받기 ================= */
 /* 강평 화면(buildSlides)과 같은 순서·구성으로 16:9 PPT 를 만듦. 사진은 빨간 원 표시를 입힌 JPEG, 묶음 장면은 lay 배치 그대로, 영상은 mp4 면 재생되게 넣고 아니면 첫 장면 */
-let pptP=null;function loadPptx(){return pptP||(pptP=new Promise(ok=>{if(window.PptxGenJS)return ok(true);const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js';s.onload=()=>ok(!!window.PptxGenJS);s.onerror=()=>{pptP=null;ok(false)};document.head.appendChild(s)}))}
+let pptP=null;function loadPptx(){return pptP||(pptP=new Promise(ok=>{if(window.PptxGenJS)return ok(true);const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';s.onload=()=>ok(!!window.PptxGenJS);s.onerror=()=>{pptP=null;ok(false)};document.head.appendChild(s)}))}
 const PW=13.333,PH=7.5,PFONT='맑은 고딕',P_BG='E6E9ED',P_INK='15202B',P_INK2='48566A',P_LAY='DADEE3';
 function pptName(r){return `${r.siteName} 강평자료_${r.date.replaceAll('-','').slice(2)}.pptx`}
 function pFit(w,h,bx,by,bw,bh){const k=Math.min(bw/w,bh/h);const W=w*k,H=h*k;return {x:bx+(bw-W)/2,y:by+(bh-H)/2,w:W,h:H}}
