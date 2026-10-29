@@ -778,7 +778,7 @@ function renderRound(id,r,st,photos){
       <dt>첨부</dt><dd>${esc(r.siteName)} 강평자료_${r.date.replaceAll('-','').slice(2)}.xlsx · 미흡 <span class="num">${bad}</span>건 (위기대응 제외)</dd>
       ${r.sentAt?`<dt>발송</dt><dd>${new Date(r.sentAt).toLocaleString('ko-KR')}</dd>`:''}
       <dt>사진 ZIP</dt><dd>${st.photoTo?`${esc(st.photoTo)} · 사진 <span class="num">${photos.filter(p=>p.kind!=='video').length}</span>장(영상 제외)${r.zipSentAt?` · <span style="color:var(--ok)">${new Date(r.zipSentAt).toLocaleString('ko-KR')} 발송</span>`:''}`:'<span class="muted">받는 사람 없음</span> · <a href="#s">설정 › 메일에서 등록</a>'}</dd></dl>
-      <div class="row"><button class="btn" id="xlBtn">엑셀 미리 내려받기</button><button class="btn ${r.sentAt?'':'pri'}" id="endBtn">${r.sentAt?'메일 다시 보내기':'강평 종료 · 메일 발송'}</button>${SERVER&&st.photoTo&&r.sentAt?`<button class="btn" id="zipBtn">사진 ZIP만 보내기</button>`:''}</div>
+      <div class="row"><button class="btn" id="xlBtn">엑셀 미리 내려받기</button><button class="btn" id="pptBtn">강평 PPT 내려받기</button><button class="btn ${r.sentAt?'':'pri'}" id="endBtn">${r.sentAt?'메일 다시 보내기':'강평 종료 · 메일 발송'}</button>${SERVER&&st.photoTo&&r.sentAt?`<button class="btn" id="zipBtn">사진 ZIP만 보내기</button>`:''}</div>
       <div class="prog" id="xlProg" hidden><i></i></div>
     </section>
     ${PARTS.map(p=>partSection(p,photos,c)).join('')}
@@ -796,6 +796,7 @@ function renderRound(id,r,st,photos){
   $('#delRound').onclick=()=>confirmBox(`「${r.siteName} ${fmtD(r.date)}」 회차와 사진 ${photos.length}개를 모두 지웁니다.`,'삭제',async()=>{await API.deleteRound(r.id);location.hash='#'});
   $('#editRound').onclick=()=>editRoundBox(r,st);
   $('#xlBtn').onclick=async()=>{const b=await makeExcel(r,photos,'#xlProg');if(b)download(b,xlName(r))};
+  $('#pptBtn').onclick=async()=>{const b=await makePptx(r,photos,'#xlProg');if(b)download(b,pptName(r))};
   $('#endBtn').onclick=()=>endReview(r,site,st,photos);
   const zb=$('#zipBtn');if(zb)zb.onclick=()=>confirmBox(`${esc(st.photoTo)} 로 사진 ZIP(영상 제외)과 엑셀을 보냅니다.`,'보내기',async()=>{
     const pr=$('#xlProg');BUSY++;try{const marked={};toast('사진을 묶어 보내는 중… (30초~1분)',60000);const z=await API.sendPhotoZip({round:r,marked});document.querySelectorAll('.toast').forEach(t=>t.remove());toast(`${z.to} 로 사진 ${z.n}장(${z.mb}MB)을 ${z.link?'드라이브 링크로 ':''}보냈습니다.`,5000)}
@@ -1421,6 +1422,89 @@ async function makeExcel(r,photos,progSel){
   try{return await buildExcel(r,photos,f=>{if(pr)pr.firstChild.style.width=(f*100)+'%'})}
   catch(e){console.error(e);toast('엑셀을 만들지 못했습니다: '+e.message,4000);return null}
   finally{if(pr)setTimeout(()=>pr.hidden=true,600)}
+}
+
+/* ================= 강평 PPT 내려받기 ================= */
+/* 강평 화면(buildSlides)과 같은 순서·구성으로 16:9 PPT 를 만듦. 사진은 빨간 원 표시를 입힌 JPEG, 묶음 장면은 lay 배치 그대로, 영상은 mp4 면 재생되게 넣고 아니면 첫 장면 */
+let pptP=null;function loadPptx(){return pptP||(pptP=new Promise(ok=>{if(window.PptxGenJS)return ok(true);const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js';s.onload=()=>ok(!!window.PptxGenJS);s.onerror=()=>{pptP=null;ok(false)};document.head.appendChild(s)}))}
+const PW=13.333,PH=7.5,PFONT='맑은 고딕',P_BG='E6E9ED',P_INK='15202B',P_INK2='48566A',P_LAY='DADEE3';
+function pptName(r){return `${r.siteName} 강평자료_${r.date.replaceAll('-','').slice(2)}.pptx`}
+function pFit(w,h,bx,by,bw,bh){const k=Math.min(bw/w,bh/h);const W=w*k,H=h*k;return {x:bx+(bw-W)/2,y:by+(bh-H)/2,w:W,h:H}}
+async function pptImage(p,maxPx=1600){ // 원 표시를 입힌 JPEG dataURL (영상은 첫 장면 + ▶)
+  const bm=await loadBitmap(await API.getBlob(xlSrc(p)));const w=bm.width,h=bm.height;const k=Math.min(1,maxPx/Math.max(w,h));
+  const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);const g=c.getContext('2d');g.drawImage(bm,0,0,c.width,c.height);
+  g.strokeStyle='#FF2A2A';g.lineWidth=Math.max(3,c.width*.008);
+  for(const e of p.circles||[])markPath(g,e,e.cx*c.width,e.cy*c.height,e.rx*c.width,e.ry*c.height);
+  if(p.kind==='video'){const R=Math.min(c.width,c.height)*.11,cx=c.width/2,cy=c.height/2;g.fillStyle='rgba(0,0,0,.45)';g.beginPath();g.arc(cx,cy,R,0,Math.PI*2);g.fill();
+    g.fillStyle='#fff';g.beginPath();g.moveTo(cx-R*.32,cy-R*.5);g.lineTo(cx+R*.55,cy);g.lineTo(cx-R*.32,cy+R*.5);g.closePath();g.fill()}
+  return {data:c.toDataURL('image/jpeg',.86),w:c.width,h:c.height}
+}
+const ART_DATA=new Map();
+async function pptArt(k){ // 분야 첫 장 배경(가져오지 못하면 null → 단색)
+  if(ART_DATA.has(k))return ART_DATA.get(k);let d=null;
+  try{const ac=new AbortController();const t=setTimeout(()=>ac.abort(),8000);const res=await fetch(artUrl(k),{mode:'cors',signal:ac.signal});clearTimeout(t);
+    if(res.ok){const b=await res.blob();const bm=await loadBitmap(b);const c=document.createElement('canvas');c.width=1600;c.height=900;const g=c.getContext('2d');
+      const kk=Math.max(c.width/bm.width,c.height/bm.height);const W=bm.width*kk,H=bm.height*kk;g.drawImage(bm,(c.width-W)/2,(c.height-H)/2,W,H);
+      const rg=g.createRadialGradient(800,450,0,800,450,900);rg.addColorStop(0,'rgba(230,233,237,.9)');rg.addColorStop(.35,'rgba(230,233,237,.82)');rg.addColorStop(1,'rgba(230,233,237,.42)');g.fillStyle=rg;g.fillRect(0,0,c.width,c.height);
+      d=c.toDataURL('image/jpeg',.8)}}catch(e){}
+  ART_DATA.set(k,d);return d;
+}
+async function buildPptx(r,photos,onProg){
+  if(!(await loadPptx()))throw new Error('PPT 도구(PptxGenJS)를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.');
+  const S=buildSlides(r,photos);if(!S.length)throw new Error('올라온 사진이 없습니다.');
+  const pptx=new PptxGenJS();pptx.layout='LAYOUT_WIDE';pptx.title=`${r.siteName} 강평자료`;pptx.author='CHM';pptx.lang='ko-KR';
+  const txt=(sl,t,o)=>sl.addText(t,{fontFace:PFONT,color:P_INK,margin:0,...o});
+  const meta=(sl,s,i)=>txt(sl,`${s.p?s.p.n:'표지'}   ${i+1} / ${S.length}`,{x:PW-4.4,y:.14,w:4.1,h:.32,fontSize:11,color:P_INK2,align:'right'});
+  const badge=(sl,x,bx,by,sc=1)=>{if(x.part==='crisis')return;const fix=x.grade==='bad';const t=fix?'개선필요':GRADE[x.grade];const fill=fix?'F47920':x.grade==='good'?'1565C0':'546E7A';
+    txt(sl,t,{x:bx,y:by,w:(fix?1.55:1.05)*sc,h:.5*sc,fontSize:20*sc,bold:true,color:'FFFFFF',fill:{color:fill},align:'center',valign:'middle',shape:pptx.ShapeType.roundRect,rectRadius:.08*sc,shadow:{type:'outer',blur:4,offset:1,angle:90,color:'000000',opacity:.35}})};
+  const cc=(sl,x,bx,by,bw,bh)=>{const t=[x.place,x.desc].filter(Boolean).join(' · ');if(!t)return;const h=Math.min(.42,bh*.2);
+    txt(sl,t,{x:bx,y:by+bh-h,w:bw,h,fontSize:Math.max(8,Math.min(13,bw*2.2)),color:'FFFFFF',fill:{color:'000000',transparency:40},align:'center',valign:'middle',fit:'shrink'})};
+  const media=async(sl,x,box)=>{ // 영상: mp4 면 재생되게, 아니면 첫 장면
+    const im=await pptImage(x);const f=pFit(im.w,im.h,box.x,box.y,box.w,box.h);let done=false;
+    if(x.kind==='video'){try{const b=await API.getBlob(x.fileId);if(b&&/mp4/.test(b.type)&&b.size<60*1048576){sl.addMedia({type:'video',data:'video/mp4;base64,'+await b64(b),cover:im.data,...f});done=true}}catch(e){console.warn('영상 넣기',x.id,e)}}
+    if(!done)sl.addImage({data:im.data,...f});
+    return f};
+  let done=0;
+  for(let i=0;i<S.length;i++){const s=S[i];const sl=pptx.addSlide();sl.background={color:P_BG};
+    if(s.t==='cover'){
+      sl.addShape(pptx.ShapeType.rect,{x:PW/2-.5,y:2.05,w:.5,h:.09,fill:{color:'E6022D'},line:{color:'E6022D'}});sl.addShape(pptx.ShapeType.rect,{x:PW/2,y:2.05,w:.5,h:.09,fill:{color:'F47920'},line:{color:'F47920'}});
+      txt(sl,`SKT ${r.half||''} 사옥점검`.replace(/\s+/g,' '),{x:.5,y:2.35,w:PW-1,h:.6,fontSize:26,color:P_INK2,align:'center',charSpacing:4});
+      txt(sl,r.siteName,{x:.5,y:3.0,w:PW-1,h:1.7,fontSize:80,bold:true,align:'center',valign:'middle',fit:'shrink'});
+      if(korD(r.date))txt(sl,korD(r.date),{x:.5,y:4.85,w:PW-1,h:.6,fontSize:26,color:P_INK2,align:'center',charSpacing:1});
+    }else if(s.t==='div'){
+      const art=await pptArt(s.p.k);if(art)sl.addImage({data:art,x:0,y:0,w:PW,h:PH});
+      txt(sl,s.p.n,{x:.5,y:2.45,w:PW-1,h:1.6,fontSize:66,bold:true,align:'center',valign:'middle'});
+      if(s.p.k!=='crisis')txt(sl,`우수 ${s.good||0}  ·  미흡 ${s.bad||0}`,{x:PW/2-1.9,y:4.25,w:3.8,h:.6,fontSize:20,color:'FFFFFF',fill:{color:'B26A00'},align:'center',valign:'middle',shape:pptx.ShapeType.roundRect,rectRadius:.1});
+      meta(sl,s,i);
+    }else if(s.t==='photo'){const x=s.x;const hasCap=!!(x.desc||x.place);
+      const box={x:.4,y:.55,w:PW-.8,h:hasCap?PH-.55-1.45:PH-.95};const f=await media(sl,x,box);
+      badge(sl,x,f.x+.22,f.y+.18);
+      if(hasCap)sl.addText([{text:x.desc||x.place,options:{fontSize:20,bold:true,color:P_INK,breakLine:!!(x.desc&&x.place)}},...(x.desc&&x.place?[{text:x.place,options:{fontSize:13,color:P_INK2}}]:[])],{fontFace:PFONT,x:1.2,y:PH-1.3,w:PW-2.4,h:1.0,fill:{color:'FFFFFF'},align:'center',valign:'middle',margin:[6,14,6,14],shape:pptx.ShapeType.roundRect,rectRadius:.08,shadow:{type:'outer',blur:6,offset:1,angle:90,color:'15202B',opacity:.15},fit:'shrink'});
+      meta(sl,s,i);
+    }else if(s.t==='group'){const aw=PW-.6,ah=PH-.85;const CW=Math.min(aw,ah*LAYW/LAYH),CH=CW*LAYH/LAYW;const ox=(PW-CW)/2,oy=.55+(ah-CH)/2;
+      sl.addShape(pptx.ShapeType.rect,{x:ox,y:oy,w:CW,h:CH,fill:{color:P_LAY},line:{color:P_LAY}});
+      for(const x of s.items){const L=x.lay;const bx=ox+L.x*CW,by=oy+L.y*CH,bw=L.w*CW,bh=L.h*CH;const im=await pptImage(x,1200);
+        sl.addImage({data:im.data,x:bx,y:by,w:bw,h:bh,shadow:{type:'outer',blur:5,offset:1,angle:90,color:'15202B',opacity:.25}});
+        const sc=Math.max(.5,Math.min(1,bw/6));badge(sl,x,bx+.12*sc,by+.1*sc,sc);cc(sl,x,bx,by,bw,bh)}
+      meta(sl,s,i);
+    }else if(s.t==='grid'){const n=s.items.length,co=n>1?2:1,ro=n>2?2:1;const gw=PW-.6,gh=PH-.85,gap=.12;const cw=(gw-(co-1)*gap)/co,ch=(gh-(ro-1)*gap)/ro;
+      for(let k=0;k<n;k++){const x=s.items[k];const c=k%co,rr=Math.floor(k/co);const im=await pptImage(x,1200);
+        const f=pFit(im.w,im.h,.3+c*(cw+gap),.55+rr*(ch+gap),cw,ch);sl.addImage({data:im.data,...f});cc(sl,x,f.x,f.y,f.w,f.h)}
+      meta(sl,s,i);
+    }else if(s.t==='video'){let ok=false;
+      if(r.mergedId){try{const b=await API.getBlob(r.mergedId);if(b&&/mp4/.test(b.type)&&b.size<60*1048576){sl.addMedia({type:'video',data:'video/mp4;base64,'+await b64(b),x:.9,y:.6,w:PW-1.8,h:PH-1.2});ok=true}}catch(e){console.warn('합본 영상',e)}}
+      txt(sl,'위기대응 영상',{x:.5,y:ok?.1:2.6,w:PW-1,h:ok?.4:1.2,fontSize:ok?14:48,bold:!ok,color:ok?P_INK2:P_INK,align:'center',valign:'middle'});
+      if(!ok)txt(sl,r.mergedId?'합본 영상은 PowerPoint 에서 재생할 수 없는 형식입니다. 웹앱 강평 화면에서 재생해 주세요.':`영상 ${s.n}개 · 회차 화면에서 「영상 만들기」를 먼저 눌러 주세요.`,{x:.5,y:3.9,w:PW-1,h:.6,fontSize:18,color:P_INK2,align:'center'});
+      meta(sl,s,i);
+    }
+    done++;onProg&&onProg(done/S.length)}
+  return pptx.write({outputType:'blob'});
+}
+async function makePptx(r,photos,progSel){
+  const pr=$(progSel);if(pr){pr.hidden=false;pr.firstChild.style.width='0'}BUSY++;
+  try{return await buildPptx(r,photos,f=>{if(pr)pr.firstChild.style.width=(f*100)+'%'})}
+  catch(e){console.error(e);toast('PPT 를 만들지 못했습니다: '+e.message,4000);return null}
+  finally{BUSY--;if(pr)setTimeout(()=>pr.hidden=true,600)}
 }
 
 /* ================= 시작 ================= */
