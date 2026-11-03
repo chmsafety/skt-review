@@ -1389,8 +1389,15 @@ function rebuildSheet(xml,items,siteName,date){
   return xml;
 }
 const xlSrc=p=>p.kind==='video'?(p.thumbId||p.fileId):p.fileId;
+/* 서버(드라이브)에서 원본이 지워진 사진 → 「사진 파일 없음」 회색 그림으로 대신해 PPT·엑셀이 멈추지 않게 함 */
+function missingCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.fillStyle='#C9CED6';g.fillRect(0,0,w,h);
+  g.fillStyle='#48566A';g.textAlign='center';g.textBaseline='middle';g.font=`bold ${Math.round(h*.09)}px sans-serif`;g.fillText('사진 파일 없음',w/2,h/2-h*.05);
+  g.font=`${Math.round(h*.05)}px sans-serif`;g.fillText('사진 편집 화면에서 다시 올려 주세요',w/2,h/2+h*.07);return c}
+async function srcBitmap(p){let b=null;try{b=await API.getBlob(xlSrc(p))}catch(e){}
+  if(b)try{return await loadBitmap(b)}catch(e){}
+  console.warn('사진 파일 없음',p.id,p.place);return missingCanvas(1600,1200)}
 async function excelPhoto(p){ // 양식 칸 비율로 잘라 원을 입혀 JPEG 로 (영상은 첫 장면 축소본)
-  const bm=await loadBitmap(await API.getBlob(xlSrc(p)));const w=bm.width,h=bm.height;
+  const bm=await srcBitmap(p);const w=bm.width,h=bm.height;
   let cw=w,ch=h;if(w/h>XL_R)cw=h*XL_R;else ch=w/XL_R;
   let fx=w/2,fy=h/2;const cs=p.circles||[];
   if(cs.length){const x0=Math.min(...cs.map(c=>(c.cx-c.rx)*w)),x1=Math.max(...cs.map(c=>(c.cx+c.rx)*w)),y0=Math.min(...cs.map(c=>(c.cy-c.ry)*h)),y1=Math.max(...cs.map(c=>(c.cy+c.ry)*h));fx=(x0+x1)/2;fy=(y0+y1)/2}
@@ -1407,7 +1414,7 @@ async function buildExcel(r,photos,onProg){
   const zip=await JSZip.loadAsync(TEMPLATE_B64,{base64:true});
   const parts=PARTS.filter(p=>p.sheet);const all=parts.map(p=>ordered(photos.filter(x=>x.part===p.k&&x.grade==='bad')).map(x=>x.kind==='video'?{...x,desc:'[영상] '+(x.desc||'')}:x)); // 영상은 첫 장면(축소본)을 넣음
   const total=all.reduce((a,b)=>a+b.length,0)||1;let done=0,media=0;
-  await Promise.all(all.flat().map(p=>API.getBlob(xlSrc(p))));
+  await Promise.all(all.flat().map(p=>API.getBlob(xlSrc(p)).catch(()=>null)));
   for(let s=0;s<parts.length;s++){const p=parts[s],items=all[s];const path=`xl/worksheets/sheet${p.sheet}.xml`;
     zip.file(path,rebuildSheet(await zip.file(path).async('string'),items,r.siteName,r.date));
     let anchors='',rels='';
@@ -1431,7 +1438,7 @@ const PW=13.333,PH=7.5,PFONT='맑은 고딕',P_BG='E6E9ED',P_INK='15202B',P_INK2
 function pptName(r){return `${r.siteName} 강평자료_${r.date.replaceAll('-','').slice(2)}.pptx`}
 function pFit(w,h,bx,by,bw,bh){const k=Math.min(bw/w,bh/h);const W=w*k,H=h*k;return {x:bx+(bw-W)/2,y:by+(bh-H)/2,w:W,h:H}}
 async function pptImage(p,maxPx=1600){ // 원 표시를 입힌 JPEG dataURL (영상은 첫 장면 + ▶)
-  const bm=await loadBitmap(await API.getBlob(xlSrc(p)));const w=bm.width,h=bm.height;const k=Math.min(1,maxPx/Math.max(w,h));
+  const bm=await srcBitmap(p);const w=bm.width,h=bm.height;const k=Math.min(1,maxPx/Math.max(w,h));
   const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);const g=c.getContext('2d');g.drawImage(bm,0,0,c.width,c.height);
   g.strokeStyle='#FF2A2A';g.lineWidth=Math.max(3,c.width*.008);
   for(const e of p.circles||[])markPath(g,e,e.cx*c.width,e.cy*c.height,e.rx*c.width,e.ry*c.height);
