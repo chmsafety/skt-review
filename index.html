@@ -101,6 +101,7 @@ textarea{resize:vertical;min-height:64px;line-height:1.45}
 .rcw .rsel input:disabled{opacity:.35}
 .dlbar{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
 .dlbar .row{gap:8px}
+.dlopts{display:flex;flex-wrap:wrap;gap:4px 16px;margin:6px 0 4px}.dlopts label{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:14px;cursor:pointer;min-height:32px}
 .empty{border:1px dashed var(--line);border-radius:12px;padding:28px;text-align:center;color:var(--ink-2)}
 /* 사진 틀 */
 .box{position:relative;background:var(--surface-2);border-radius:8px;overflow:hidden;display:grid;place-items:center;aspect-ratio:4/3}
@@ -612,8 +613,11 @@ function renderHome(rounds,st){
   if(rounds.length)bindHomeYears(rounds);
   prefetchRounds(rounds);
 }
-/* 연도 → 상반기·하반기로 나눠 보여 주고, 사업장(회차)을 체크해 사진 일괄 다운로드 */
+/* 연도 → 상반기·하반기로 나눠 보여 주고, 사업장(회차)을 체크해 사진·엑셀·강평자료(PPT) 일괄 다운로드 */
 const HOME={year:null,sel:new Set()};
+const anyN=r=>(r._c&&r._c._n)||0;
+const DLKIND=[['photo','사진'],['xl','엑셀'],['ppt','강평자료(PPT)']];
+const dlOpt=()=>({photo:true,xl:true,ppt:true,...lsGet('skt_dlopt',{})});
 const photoN=r=>{const c=r._c||{};let v=0;for(const p of PARTS)v+=(c[p.k]&&c[p.k].video)||0;return Math.max(0,(c._n||0)-v)};
 function homeYears(rounds){
   const years=[...new Set(rounds.map(r=>String(r.year||(r.date||'').slice(0,4))))].filter(Boolean).sort().reverse();
@@ -621,10 +625,10 @@ function homeYears(rounds){
   const ids=new Set(rounds.map(r=>r.id));for(const id of [...HOME.sel])if(!ids.has(id))HOME.sel.delete(id);
   const inY=rounds.filter(r=>String(r.year||(r.date||'').slice(0,4))===y);
   const card=r=>{const c=r._c;const s=statusOf(r,{length:c._n});const n=photoN(r);
-    return `<div class="rcw${HOME.sel.has(r.id)?' on':''}" data-id="${r.id}"><label class="rsel" title="${n?'사진 다운로드에 넣기':'사진 없음'}"><input type="checkbox" class="chk rchk" data-id="${r.id}" ${HOME.sel.has(r.id)?'checked':''} ${n?'':'disabled'} aria-label="${esc(r.siteName)} 선택"></label>
+    return `<div class="rcw${HOME.sel.has(r.id)?' on':''}" data-id="${r.id}"><label class="rsel" title="${anyN(r)?'일괄 다운로드에 넣기':'올라온 자료 없음'}"><input type="checkbox" class="chk rchk" data-id="${r.id}" ${HOME.sel.has(r.id)?'checked':''} ${anyN(r)?'':'disabled'} aria-label="${esc(r.siteName)} 선택"></label>
     <a class="rc" href="#r/${r.id}"><div class="t"><div><div class="nm">${esc(r.siteName)}</div><div class="muted">${fmtD(r.date)} · 사진 <span class="num">${n}</span>장</div></div><span class="pill ${s.c}">${s.t}</span></div>
     <div class="bars">${PARTS.map(p=>{const x=c[p.k];const k=p.k==='crisis'?x.crisis+x.video:x.good+x.bad+(x.ref||0)+(x.video||0);return `<div>${p.n}<b>${k}</b></div>`}).join('')}</div></a></div>`};
-  const sec=h=>{const l=inY.filter(r=>r.half===h);const can=l.filter(r=>photoN(r));const all=can.length&&can.every(r=>HOME.sel.has(r.id));
+  const sec=h=>{const l=inY.filter(r=>r.half===h);const can=l.filter(r=>anyN(r));const all=can.length&&can.every(r=>HOME.sel.has(r.id));
     return `<section class="hsec"><div class="hhead"><h2>${y}년 ${h}<span class="muted">사업장 ${l.length}곳</span></h2>${can.length?`<label class="hall"><input type="checkbox" class="chk hchk" data-h="${h}" ${all?'checked':''}> ${h} 전체 선택</label>`:''}</div>
     ${l.length?`<div class="rounds">${l.map(card).join('')}</div>`:`<div class="empty">${y}년 ${h} 점검 회차가 없습니다.</div>`}</section>`};
   return `<div class="tabs yrtabs" role="tablist">${years.map(x=>`<button role="tab" data-y="${x}" aria-selected="${x===y}">${x}년</button>`).join('')}</div>${sec('상반기')}${sec('하반기')}`;
@@ -634,56 +638,78 @@ function bindHomeYears(rounds){
   $$('.yrtabs button').forEach(b=>b.onclick=()=>{HOME.year=b.dataset.y;lsSet('skt_year',HOME.year);renderHome(rounds,lastHomeSt)});
   $$('.rsel').forEach(l=>l.onclick=e=>e.stopPropagation());
   $$('.rchk').forEach(c=>c.onchange=()=>{c.checked?HOME.sel.add(c.dataset.id):HOME.sel.delete(c.dataset.id);c.closest('.rcw').classList.toggle('on',c.checked);syncHall();paintDl()});
-  $$('.hchk').forEach(c=>c.onchange=()=>{const l=rounds.filter(r=>String(r.year||(r.date||'').slice(0,4))===HOME.year&&r.half===c.dataset.h&&photoN(r));
+  $$('.hchk').forEach(c=>c.onchange=()=>{const l=rounds.filter(r=>String(r.year||(r.date||'').slice(0,4))===HOME.year&&r.half===c.dataset.h&&anyN(r));
     l.forEach(r=>c.checked?HOME.sel.add(r.id):HOME.sel.delete(r.id));
     $$('.rchk').forEach(x=>{if(l.some(r=>r.id===x.dataset.id)){x.checked=c.checked;x.closest('.rcw').classList.toggle('on',c.checked)}});paintDl()});
   const syncHall=()=>$$('.hchk').forEach(c=>{const xs=$$('.rchk').filter(x=>!x.disabled&&byId[x.dataset.id]&&byId[x.dataset.id].half===c.dataset.h);c.checked=xs.length>0&&xs.every(x=>x.checked)});
   const paintDl=()=>{const bar=$('#dlBar');if(!bar)return;const sel=[...HOME.sel].map(id=>byId[id]).filter(Boolean);
     if(!sel.length){bar.hidden=true;bar.innerHTML='';return}
     const n=sel.reduce((a,r)=>a+photoN(r),0);const other=sel.filter(r=>String(r.year)!==HOME.year).length;
-    bar.hidden=false;bar.innerHTML=`<div><b>사업장 <span class="num">${sel.length}</span>곳</b> · 사진 <span class="num">${n}</span>장${other?` <span class="muted">(다른 연도 ${other}곳 포함)</span>`:''}<div class="muted" style="font-size:12.5px">영상 제외 · 사업장별·분야별 폴더로 묶은 ZIP · 원 표시 없는 원본</div></div>
-    <div class="row"><button class="btn sm" id="dlClr">선택 해제</button><button class="btn pri" id="dlGo">사진 일괄 다운로드</button></div>`;
+    const o=dlOpt();const any=DLKIND.some(([k])=>o[k]);
+    const note=[o.photo?'사진: 영상 제외 · 분야별 폴더 · 원 표시 없는 원본':'',o.xl?'엑셀: 사업장 전달 양식':'',o.ppt?'강평자료: 강평 화면과 같은 PPT':''].filter(Boolean).join(' / ')||'받을 자료를 하나 이상 고르세요.';
+    bar.hidden=false;bar.innerHTML=`<div><b>사업장 <span class="num">${sel.length}</span>곳</b> · 사진 <span class="num">${n}</span>장${other?` <span class="muted">(다른 연도 ${other}곳 포함)</span>`:''}
+      <div class="dlopts" role="group" aria-label="받을 자료">${DLKIND.map(([k,t])=>`<label><input type="checkbox" class="chk dlo" data-o="${k}" ${o[k]?'checked':''}> ${t}</label>`).join('')}</div>
+      <div class="muted" style="font-size:12.5px">${note} · 사업장별로 정리해 ZIP 한 개로 받습니다</div></div>
+    <div class="row"><button class="btn sm" id="dlClr">선택 해제</button><button class="btn pri" id="dlGo" ${any?'':'disabled'}>일괄 다운로드</button></div>`;
+    $$('.dlo',bar).forEach(c=>c.onchange=()=>{const x=dlOpt();x[c.dataset.o]=c.checked;lsSet('skt_dlopt',x);paintDl()});
     $('#dlClr').onclick=()=>{HOME.sel.clear();renderHome(rounds,lastHomeSt)};
-    $('#dlGo').onclick=()=>downloadSitePhotos(sel)};
+    $('#dlGo').onclick=()=>downloadSiteFiles(sel,dlOpt())};
   paintDl();
 }
 let lastHomeSt=null;
 const fsName=s=>String(s||'').replace(/[\\/:*?"<>|\r\n\t]+/g,'_').replace(/\s+/g,' ').trim().slice(0,60);
-async function downloadSitePhotos(sel){
-  if(DLBUSY)return;DLBUSY=true;
+async function downloadSiteFiles(sel,opt){
+  if(DLBUSY)return;DLBUSY=true;BUSY++;
   const btn=$('#dlGo');if(btn){btn.disabled=true}
   const yh=[...new Set(sel.map(r=>`${r.year}년 ${r.half}`))];
   const st=document.createElement('div');st.className='toast';document.body.appendChild(st);
   const say=t=>{st.textContent=t;if(btn)btn.textContent=t};
-  const keepRid=API.rid;let total=0,done=0,miss=0;
+  const guard=e=>{e.preventDefault();e.returnValue=''};addEventListener('beforeunload',guard);
+  const ymd=r=>String(r.date||'').replaceAll('-','').slice(2);
+  const keepRid=API.rid;let total=0,done=0,miss=0,nx=0,np=0;const fails=[];
   try{
     const zip=new JSZip();const lists=[];
-    say('사진 목록 확인 중…');
-    for(const r of sel){const ph=(await API.photos(r.id)).filter(p=>p.kind!=='video'&&p.fileId);lists.push([r,ph]);total+=ph.length}
-    if(!total){toast('선택한 사업장에 사진이 없습니다.');return}
-    const used=new Set();
-    for(const [r,ph] of lists){
+    say('목록 확인 중…');
+    for(const r of sel){const all=await API.photos(r.id);const ph=all.filter(p=>p.kind!=='video'&&p.fileId);lists.push([r,all,ph]);if(opt.photo)total+=ph.length}
+    if(!(opt.photo&&total)&&!((opt.xl||opt.ppt)&&lists.some(x=>x[1].length))){toast(opt.xl||opt.ppt?'선택한 사업장에 올라온 자료가 없습니다.':'선택한 사업장에 사진이 없습니다.');return}
+    const used=new Set();const uniq=(base,ext='')=>{let t=base,k=2;while(used.has(t+ext))t=`${base}(${k++})`;used.add(t+ext);return t+ext};
+    for(let i=0;i<lists.length;i++){const [r,all,ph]=lists[i];
       API.rid=r.id;
-      let top=`${fsName(r.siteName)}_${String(r.date||'').replaceAll('-','').slice(2)}`;if(yh.length>1)top=`${r.year}년 ${r.half}/${top}`;
-      let t=top,k=2;while(used.has(t))t=`${top}(${k++})`;used.add(t);top=t;
-      const items=[];
-      PARTS.forEach((pt,pi)=>{const inP=ph.filter(p=>p.part===pt.k);
-        const grades=pt.k==='crisis'?[null]:['good','bad','ref'];
-        for(const g of grades){const l=ordered(g?inP.filter(p=>p.grade===g):inP);
-          l.forEach((p,i)=>items.push({p,path:`${top}/${pi+1}.${pt.n}/${g?GRADE[g]+'_':''}${String(i+1).padStart(2,'0')}${p.place?'_'+fsName(p.place):''}`}))}
-        if(pt.k!=='crisis'){const rest=inP.filter(p=>!['good','bad','ref'].includes(p.grade));ordered(rest).forEach((p,i)=>items.push({p,path:`${top}/${pi+1}.${pt.n}/기타_${String(i+1).padStart(2,'0')}`}))}});
-      say(`${r.siteName} 사진 받는 중… ${done}/${total}`);
-      await Promise.all(items.map(async it=>{let b=null;try{b=await API.getBlob(it.p.fileId)}catch(e){}
-        if(b){const ext=/png/.test(b.type)?'png':/webp/.test(b.type)?'webp':'jpg';zip.file(`${it.path}.${ext}`,b,{date:new Date(it.p.createdAt||Date.now())})}else miss++;
-        done++;say(`${r.siteName} 사진 받는 중… ${done}/${total}`)}));
+      const head=lists.length>1?`(${i+1}/${lists.length}) ${r.siteName}`:r.siteName;
+      const pre=yh.length>1?`${r.year}년 ${r.half}/`:'';
+      const top=opt.photo?uniq(`${pre}${fsName(r.siteName)}_${ymd(r)}`):'';   // 사진을 넣을 때만 사업장 폴더, 엑셀·PPT 만이면 한 폴더에 나란히
+      const dir=opt.photo?top+'/':pre;const doc=`${dir}${fsName(r.siteName)} 강평자료_${ymd(r)}`;
+      if(opt.photo&&ph.length){
+        const items=[];
+        PARTS.forEach((pt,pi)=>{const inP=ph.filter(p=>p.part===pt.k);
+          const grades=pt.k==='crisis'?[null]:['good','bad','ref'];
+          for(const g of grades){const l=ordered(g?inP.filter(p=>p.grade===g):inP);
+            l.forEach((p,i)=>items.push({p,path:`${top}/${pi+1}.${pt.n}/${g?GRADE[g]+'_':''}${String(i+1).padStart(2,'0')}${p.place?'_'+fsName(p.place):''}`}))}
+          if(pt.k!=='crisis'){const rest=inP.filter(p=>!['good','bad','ref'].includes(p.grade));ordered(rest).forEach((p,i)=>items.push({p,path:`${top}/${pi+1}.${pt.n}/기타_${String(i+1).padStart(2,'0')}`}))}});
+        say(`${head} 사진 받는 중… ${done}/${total}`);
+        await Promise.all(items.map(async it=>{let b=null;try{b=await API.getBlob(it.p.fileId)}catch(e){}
+          if(b){const ext=/png/.test(b.type)?'png':/webp/.test(b.type)?'webp':'jpg';zip.file(`${it.path}.${ext}`,b,{date:new Date(it.p.createdAt||Date.now())})}else miss++;
+          done++;say(`${head} 사진 받는 중… ${done}/${total}`)}));
+      }
+      if(opt.xl&&all.length){say(`${head} 엑셀 만드는 중…`);
+        try{zip.file(uniq(doc,'.xlsx'),await buildExcel(r,all,f=>say(`${head} 엑셀 만드는 중… ${Math.round(f*100)}%`)));nx++}
+        catch(e){console.error(e);fails.push(`${r.siteName} 엑셀(${e.message})`)}}
+      if(opt.ppt&&all.length){say(`${head} 강평자료(PPT) 만드는 중…`);
+        try{zip.file(uniq(doc,'.pptx'),await buildPptx(r,all,f=>say(`${head} 강평자료(PPT) 만드는 중… ${Math.round(f*100)}%`)));np++}
+        catch(e){console.error(e);fails.push(`${r.siteName} PPT(${e.message})`)}}
     }
+    const got=total-miss;
+    if(!got&&!nx&&!np)throw new Error(fails.length?fails.join(', '):'받을 수 있는 자료가 없습니다.');
     say('ZIP 만드는 중…');
     const blob=await zip.generateAsync({type:'blob',compression:'STORE'});
-    const nm=yh.length===1?`SKT ${yh[0]} 사옥점검 사진`:'SKT 사옥점검 사진';
+    const kind=(opt.photo&&!opt.xl&&!opt.ppt)?'사진':(!opt.photo&&opt.xl&&!opt.ppt)?'엑셀':(!opt.photo&&!opt.xl&&opt.ppt)?'강평자료':'자료';
+    const nm=yh.length===1?`SKT ${yh[0]} 사옥점검 ${kind}`:`SKT 사옥점검 ${kind}`;
     download(blob,`${nm}_${sel.length===1?fsName(sel[0].siteName):sel.length+'곳'}_${today().replaceAll('-','').slice(2)}.zip`);
-    toast(`사업장 ${sel.length}곳 · 사진 ${total-miss}장(${(blob.size/1048576).toFixed(1)}MB)을 내려받았습니다.`+(miss?` ${miss}장은 불러오지 못했습니다.`:''),miss?7000:4000);
-  }catch(e){toast('사진을 내려받지 못했습니다: '+e.message,6000)}
-  finally{API.rid=keepRid;st.remove();DLBUSY=false;const b=$('#dlGo');if(b){b.disabled=false;b.textContent='사진 일괄 다운로드'}}
+    const what=[opt.photo?`사진 ${got}장`:'',opt.xl?`엑셀 ${nx}개`:'',opt.ppt?`강평자료(PPT) ${np}개`:''].filter(Boolean).join(' · ');
+    const bad=[miss?`사진 ${miss}장은 불러오지 못했습니다.`:'',fails.length?`만들지 못함: ${fails.join(', ')}`:''].filter(Boolean).join(' ');
+    toast(`사업장 ${sel.length}곳 · ${what}(${(blob.size/1048576).toFixed(1)}MB)을 내려받았습니다.`+(bad?' '+bad:''),bad?9000:4000);
+  }catch(e){console.error(e);toast('내려받지 못했습니다: '+e.message,7000)}
+  finally{API.rid=keepRid;removeEventListener('beforeunload',guard);st.remove();BUSY--;DLBUSY=false;const b=$('#dlGo');if(b){b.disabled=false;b.textContent='일괄 다운로드'}}
 }
 let DLBUSY=false;
 let prefetched=false;
