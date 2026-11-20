@@ -156,6 +156,8 @@ table.t input{min-height:34px;padding:5px 8px}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
 .tabs button{border:0;background:none;padding:10px 14px;font-weight:600;color:var(--ink-3);border-bottom:2px solid transparent}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.lk-visit{background:var(--accent-soft);color:var(--accent)}.lk-download{background:var(--good-soft);color:var(--good)}.lk-mail{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}.lk-etc{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}.lk-bad{background:var(--bad-soft);color:var(--bad)}
+table.logt td{padding:8px 6px;vertical-align:top}table.logt{min-width:560px}
 /* 모달 */
 .modal{position:fixed;inset:0;z-index:50;background:rgba(8,12,16,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 .sheet{background:var(--surface);border-radius:14px;max-width:560px;width:100%;max-height:100%;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
@@ -320,6 +322,7 @@ const IDB={
 };
 const LAPI={
   mode:'local',code:null,rid:null,
+  log(){},async logs(){return {logs:[],total:0}},
   async settings(){const s=await IDB.get('kv','settings');if(s)return s;const d={sites:SEED_SITES,inspectors:[],cc:''};await IDB.put('kv',d,'settings');return d},
   saveSettings(s){return IDB.put('kv',s,'settings')},
   async rounds(){return (await IDB.all('rounds')).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt-a.createdAt))},
@@ -440,10 +443,15 @@ const SAPI={
   delBlob(id){IDB.del('blobs',id).catch(()=>{});return this.call('fileDelete',{id})},
   async sendMail(o){const j=await this.call('mailSend',{id:o.round.id,name:o.name,data:await b64(o.file),counts:o.counts,withZip:!!o.withZip,marked:o.marked||{}});
     const rr=cGet('round:'+o.round.id);if(rr){rr.sentAt=j.sentAt;rr.reviewedAt=rr.reviewedAt||j.sentAt;if(j.zip){rr.zipSentAt=j.zip.sentAt;rr.zipSentTo=j.zip.to+(j.zip.link?' (링크)':'')}cSet('round:'+o.round.id,rr)}return {ok:true,to:j.to,cc:j.cc,zip:j.zip,zipErr:j.zipErr}},
+  /** 이력 남기기(접속·내려받기). 실패해도 화면에는 영향 없음 */
+  log(action,detail,roundId){this.call('logAdd',{action,detail:String(detail||'').slice(0,300),roundId:roundId||'',who:(me()||{}).name||''}).catch(()=>{})},
+  logs(limit){return this.call('logs',{limit:limit||1000})},
   async sendPhotoZip(o){const j=await this.call('photoMailSend',{id:o.round.id,marked:o.marked||{}});
     const rr=cGet('round:'+o.round.id);if(rr&&j.zip){rr.zipSentAt=j.zip.sentAt;rr.zipSentTo=j.zip.to+(j.zip.link?' (링크)':'');cSet('round:'+o.round.id,rr)}return j.zip}
 };
 const API=SERVER?SAPI:LAPI;
+const devName=()=>(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)?'모바일':'PC')+(matchMedia('(display-mode: standalone)').matches?' 앱':'');
+function logOnce(key,action,detail,roundId){try{if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1')}catch(e){}API.log(action,detail,roundId)}
 
 /* ================= 사진 처리 ================= */
 async function loadBitmap(blob){
@@ -491,14 +499,14 @@ async function viewLogin(){
   API.call('ping').catch(()=>{});
   $('#lgF').onsubmit=async e=>{e.preventDefault();const b=$('#lgBtn');b.disabled=true;b.textContent='확인 중…';$('#lgMsg').textContent='';
     const slow=setTimeout(()=>{$('#lgMsg').textContent='서버가 깨어나는 중입니다. 잠시만 기다려 주세요.'},2500);
-    try{const j=await API.call('login',{id:$('#lgId').value.trim(),pw:$('#lgPw').value});lsSet('skt_auth',{token:j.token,name:j.name,exp:j.exp});lsSet('skt_lastid',$('#lgId').value.trim());if(j.first)toast('비밀번호를 등록했습니다. 다음부터 이 비밀번호로 로그인하세요.',5000);
+    try{const j=await API.call('login',{id:$('#lgId').value.trim(),pw:$('#lgPw').value});lsSet('skt_auth',{token:j.token,name:j.name,exp:j.exp});try{sessionStorage.setItem('skt_vis_a','1')}catch(e){}lsSet('skt_lastid',$('#lgId').value.trim());if(j.first)toast('비밀번호를 등록했습니다. 다음부터 이 비밀번호로 로그인하세요.',5000);
       if(location.hash==='#login')location.hash='#';route()}
     catch(err){$('#lgMsg').textContent=err.message;$('#lgMsg').style.color='var(--bad)';b.disabled=false;b.textContent='로그인'}
     finally{clearTimeout(slow)}};
 }
 function me(){return lsGet('skt_me',null)}
-const ROUTES={'':viewHome,'s':viewSettings,'r':viewRound,'u':viewUpload,'v':viewShow,'login':viewLogin};
-const ADMIN_ROUTES=['','s','r','v'];
+const ROUTES={'':viewHome,'s':viewSettings,'r':viewRound,'u':viewUpload,'v':viewShow,'h':viewLogs,'login':viewLogin};
+const ADMIN_ROUTES=['','s','r','v','h'];
 async function route(){
   const [k,arg]=(location.hash.replace(/^#\/?/,'')||'').split('/');
   let fn=ROUTES[k]||viewHome;
@@ -509,6 +517,7 @@ async function route(){
     if(k===''&&lsGet('skt_lastview','')==='u'&&lsGet('skt_lastcode','')){location.replace('#u/'+lsGet('skt_lastcode',''));return}
     fn=viewLogin}
   if(k==='login'||(SERVER&&auth()&&k!=='u'))lsSet('skt_lastview','a');
+  if(SERVER&&auth()&&k!=='u'&&k!=='login')logOnce('skt_vis_a','visit','관리자 화면 · '+devName());
   try{await fn(decodeURIComponent(arg||''))}catch(e){console.error(e);
     if(e.relogin){route();return}
     app.innerHTML=`<div class="empty">화면을 여는 중 문제가 생겼습니다: ${esc(e.message)}<div style="margin-top:12px"><button class="btn" onclick="route()">다시 시도</button></div></div>`}
@@ -576,7 +585,7 @@ function upLink(r){return location.href.split('#')[0]+'#u/'+r.code}
 
 /* ================= 홈: 회차 목록 ================= */
 async function viewHome(){
-  setNav(`<a class="btn sm" href="#s">설정</a>`);
+  setNav(`<a class="btn sm" href="#h">이력</a><a class="btn sm" href="#s">설정</a>`);
   await swr({rounds:()=>API.roundsSummary(),settings:()=>API.settings()},d=>renderHome(d.rounds,d.settings),{skip:()=>{const f=$('#newForm');return !!(f&&!f.hidden)}});
 }
 function renderHome(rounds,st){
@@ -705,6 +714,7 @@ async function downloadSiteFiles(sel,opt){
     const kind=(opt.photo&&!opt.xl&&!opt.ppt)?'사진':(!opt.photo&&opt.xl&&!opt.ppt)?'엑셀':(!opt.photo&&!opt.xl&&opt.ppt)?'강평자료':'자료';
     const nm=yh.length===1?`SKT ${yh[0]} 사옥점검 ${kind}`:`SKT 사옥점검 ${kind}`;
     download(blob,`${nm}_${sel.length===1?fsName(sel[0].siteName):sel.length+'곳'}_${today().replaceAll('-','').slice(2)}.zip`);
+    API.log('download',`일괄 · ${[opt.photo?`사진 ${got}장`:'',opt.xl?`엑셀 ${nx}개`:'',opt.ppt?`PPT ${np}개`:''].filter(Boolean).join(' · ')} · ${sel.map(r=>r.siteName).join(', ')}`);
     const what=[opt.photo?`사진 ${got}장`:'',opt.xl?`엑셀 ${nx}개`:'',opt.ppt?`강평자료(PPT) ${np}개`:''].filter(Boolean).join(' · ');
     const bad=[miss?`사진 ${miss}장은 불러오지 못했습니다.`:'',fails.length?`만들지 못함: ${fails.join(', ')}`:''].filter(Boolean).join(' ');
     toast(`사업장 ${sel.length}곳 · ${what}(${(blob.size/1048576).toFixed(1)}MB)을 내려받았습니다.`+(bad?' '+bad:''),bad?9000:4000);
@@ -718,6 +728,35 @@ async function prefetchRounds(rounds){ // 최근 회차를 미리 받아 두어 
   const list=rounds.filter(r=>!r.sentAt).slice(0,6);
   for(const r of list){if(!location.hash.replace('#','').match(/^$|^r\//))break;
     try{const [rr,ph]=await Promise.all([API.round(r.id),API.photos(r.id)]);if(rr)cSet('round:'+r.id,rr);cSet('photos:'+r.id,ph)}catch(e){break}}
+}
+
+/* ================= 이력: 접속 · 내려받기 · 메일 발송 ================= */
+const LOGKIND=[['all','전체'],['visit','접속'],['download','내려받기'],['mail','메일 발송'],['etc','기타']];
+const LOGACT={login:['visit','로그인'],visit:['visit','접속'],download:['download','내려받기'],mailSend:['mail','강평 메일'],photoMail:['mail','사진 ZIP 메일'],settingsSave:['etc','설정 저장'],roundDelete:['etc','회차 삭제']};
+function logInfo(l){if(l.who==='error')return {k:'etc',t:'오류',who:'',detail:`${l.action}: ${l.detail}`,bad:true};
+  const a=LOGACT[l.action]||['etc',l.action];const bad=l.action==='login'&&/틀림/.test(l.detail);
+  return {k:a[0],t:bad?'로그인 실패':a[1],who:l.who,detail:l.detail,bad}}
+async function viewLogs(){
+  setNav(`<a class="btn sm" href="#">회차 목록</a>`);
+  let kind=lsGet('skt_logkind','all'),q='',logs=null,total=0,err='';
+  const draw=()=>{
+    const rows=(logs||[]).map(l=>({...logInfo(l),time:l.time})).filter(x=>(kind==='all'||x.k===kind)&&(!q||(x.time+' '+x.t+' '+x.who+' '+x.detail).toLowerCase().includes(q)));
+    const cnt=k=>(logs||[]).filter(l=>k==='all'||logInfo(l).k===k).length;
+    const keep=$('#lgQ')&&document.activeElement===$('#lgQ');
+    app.innerHTML=`<div class="stack"><div class="row" style="justify-content:space-between;align-items:flex-end"><div><h1>이력</h1><div class="sub">누가 언제 접속하고, 자료를 내려받고, 메일을 보냈는지 최근 기록을 봅니다.</div></div><button class="btn sm" id="lgRe">새로고침</button></div>
+    <div class="tabs" role="tablist" style="flex-wrap:wrap">${LOGKIND.map(([k,t])=>`<button role="tab" data-k="${k}" aria-selected="${k===kind}">${t}${logs?` <span class="num muted">${cnt(k)}</span>`:''}</button>`).join('')}</div>
+    <div class="panel stack"><input type="text" id="lgQ" placeholder="이름·사업장·파일명으로 찾기" value="${esc(q)}" aria-label="이력 찾기">
+    ${err?`<div class="empty">이력을 불러오지 못했습니다: ${esc(err)}</div>`:!logs?'<div class="muted">불러오는 중…</div>':rows.length?`<div class="tbl-wrap"><table class="t logt"><thead><tr><th style="width:150px">시각</th><th style="width:110px">구분</th><th style="width:130px">사용자</th><th>내용</th></tr></thead><tbody>
+      ${rows.slice(0,500).map(x=>`<tr><td class="num">${esc(x.time.slice(0,16))}</td><td><span class="pill lk-${x.bad?'bad':x.k}">${esc(x.t)}</span></td><td>${esc(x.who)}</td><td style="overflow-wrap:anywhere">${esc(x.detail)}</td></tr>`).join('')}
+      </tbody></table></div><div class="muted">${rows.length>500?`조건에 맞는 ${rows.length}건 중 최근 500건을 보여 줍니다. `:`${rows.length}건. `}${total>logs.length?`전체 ${total}건 중 최근 ${logs.length}건까지 불러왔습니다. `:''}이 기능을 넣은 뒤(2026-11-20)부터의 접속·내려받기가 기록됩니다.</div>`:'<div class="empty">조건에 맞는 이력이 없습니다.</div>'}</div></div>`;
+    $$('.tabs button').forEach(b=>b.onclick=()=>{kind=b.dataset.k;lsSet('skt_logkind',kind);draw()});
+    const qi=$('#lgQ');qi.oninput=()=>{q=qi.value.trim().toLowerCase();draw()};if(keep){const n=$('#lgQ');n.focus();n.setSelectionRange(n.value.length,n.value.length)}
+    $('#lgRe').onclick=load};
+  const load=async()=>{const nav=NAVID;logs=null;err='';draw();
+    try{const j=await API.logs(1000);if(nav!==NAVID)return;logs=j.logs||[];total=j.total||logs.length}
+    catch(e){if(e.relogin){route();return}if(nav!==NAVID)return;logs=[];err=/알 수 없는 요청/.test(e.message)?'서버가 아직 이력 기능이 없는 버전입니다.':e.message}
+    draw()};
+  await load();
 }
 
 /* ================= 설정 ================= */
@@ -821,8 +860,8 @@ function renderRound(id,r,st,photos){
   $('#copyLnk').onclick=()=>copyText(upLink(r));
   $('#delRound').onclick=()=>confirmBox(`「${r.siteName} ${fmtD(r.date)}」 회차와 사진 ${photos.length}개를 모두 지웁니다.`,'삭제',async()=>{await API.deleteRound(r.id);location.hash='#'});
   $('#editRound').onclick=()=>editRoundBox(r,st);
-  $('#xlBtn').onclick=async()=>{const b=await makeExcel(r,photos,'#xlProg');if(b)download(b,xlName(r))};
-  $('#pptBtn').onclick=async()=>{const b=await makePptx(r,photos,'#xlProg');if(b)download(b,pptName(r))};
+  $('#xlBtn').onclick=async()=>{const b=await makeExcel(r,photos,'#xlProg');if(b){download(b,xlName(r));API.log('download','엑셀 · '+xlName(r),r.id)}};
+  $('#pptBtn').onclick=async()=>{const b=await makePptx(r,photos,'#xlProg');if(b){download(b,pptName(r));API.log('download','강평 PPT · '+pptName(r),r.id)}};
   $('#endBtn').onclick=()=>endReview(r,site,st,photos);
   const zb=$('#zipBtn');if(zb)zb.onclick=()=>confirmBox(`${esc(st.photoTo)} 로 사진 ZIP(영상 제외)과 엑셀을 보냅니다.`,'보내기',async()=>{
     const pr=$('#xlProg');BUSY++;try{const marked={};toast('사진을 묶어 보내는 중… (30초~1분)',60000);const z=await API.sendPhotoZip({round:r,marked});document.querySelectorAll('.toast').forEach(t=>t.remove());toast(`${z.to} 로 사진 ${z.n}장(${z.mb}MB)을 ${z.link?'드라이브 링크로 ':''}보냈습니다.`,5000)}
@@ -830,7 +869,7 @@ function renderRound(id,r,st,photos){
   if(r.mergedId){const mv=$('#mergedView');mv.innerHTML='<div class="muted">합본 영상 불러오는 중…</div>';
     BIGPROG.set(r.mergedId,(d,n)=>{const v=$('#mergedView');if(v&&!v.querySelector('video'))v.innerHTML=`<div class="muted">합본 영상 불러오는 중 ${d}/${n}</div>`});
     blobUrl(r.mergedId).then(u=>{const v=$('#mergedView');if(v&&u)v.innerHTML=`<video src="${u}" controls playsinline style="max-width:100%;max-height:360px;border-radius:8px;background:#000"></video>`}).catch(e=>{const v=$('#mergedView');if(v)v.innerHTML='<div class="muted">합본 영상을 불러오지 못했습니다: '+esc(e.message)+'</div>'});
-    const dl=$('#mergedDl');if(dl)dl.onclick=async()=>{const b=await API.getBlob(r.mergedId);download(b,`${r.siteName} 위기대응_${r.date.replaceAll('-','').slice(2)}.${/mp4/.test(b.type)?'mp4':'webm'}`)}}
+    const dl=$('#mergedDl');if(dl)dl.onclick=async()=>{const b=await API.getBlob(r.mergedId);download(b,`${r.siteName} 위기대응_${r.date.replaceAll('-','').slice(2)}.${/mp4/.test(b.type)?'mp4':'webm'}`);API.log('download','위기대응 합본 영상 · '+r.siteName+' '+r.date,r.id)}}
   const mb=$('#mergeBtn');if(mb)mb.onclick=async()=>{mb.disabled=true;const pr=$('#mProg');pr.hidden=false;
     const guard=e=>{e.preventDefault();e.returnValue=''};addEventListener('beforeunload',guard);BUSY++;
     const msg=t=>{const m=$('#mMsg');if(m)m.textContent=t};const bar=f=>{const p=$('#mProg');if(p)p.firstChild.style.width=(f*100).toFixed(0)+'%'};
@@ -1087,6 +1126,7 @@ async function viewUpload(code){
   const P=PART[who.part];const isC=who.part==='crisis';
   drafts=drafts.filter(d=>d.code===code);
   const DESK=!matchMedia('(pointer:coarse)').matches;const isAdmin=!SERVER||!!auth();
+  if(SERVER&&!isAdmin)logOnce('skt_vis_'+code+'_'+who.part+'_'+who.name,'visit',`${r.siteName} ${r.date} · ${P.n} · ${devName()}`,r.id);
   app.innerHTML=`<div class="stack upwrap">${isAdmin?`<a class="btn sm" href="#r/${r.id}" style="align-self:flex-start">← 회차 화면으로</a>`:''}${head}
     <div class="panel row" style="justify-content:space-between"><div class="who"><span class="pill ${isC?'g-crisis':'p-up'}">${P.n}</span>${esc(who.name)}</div><button class="btn sm" id="chg">파트·이름 변경</button></div>
     <div class="row">
